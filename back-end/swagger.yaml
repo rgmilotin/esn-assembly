@@ -2,7 +2,7 @@ openapi: 3.0.3
 
 info:
   title: ESN Assembly app
-  version: 1.10.2
+  version: 1.10.3
   contact:
     name: Matteo Carbone
     email: email@matteocarbone.com
@@ -66,6 +66,49 @@ paths:
       responses:
         200:
           $ref: '#/components/responses/OperationCompleted'
+  /esnacc_oauth_authorize:
+    get:
+      summary: Start the sign-in with ESN Accounts through OAuth 2.0
+      description: |
+        Redirect to the authorization endpoint of ESN Accounts (authorization code with PKCE).
+        Available only in the stages where `esnAccountsOAuth` is enabled.
+      tags: [Login]
+      parameters:
+        - name: localhost
+          in: query
+          description: The port of a local development front-end to redirect to at the end of the flow
+          schema:
+            type: number
+      responses:
+        302:
+          description: Redirect to ESN Accounts
+  /esnacc_oauth_callback:
+    get:
+      summary: Complete the sign-in with ESN Accounts through OAuth 2.0
+      description: |
+        The redirect URI registered with ESN Accounts. It validates the flow, gets the user's profile and redirects to
+        the front-end with a token to authenticate the user (or with an error code).
+        Available only in the stages where `esnAccountsOAuth` is enabled.
+      tags: [Login]
+      parameters:
+        - name: code
+          in: query
+          description: The authorization code returned by ESN Accounts
+          schema:
+            type: string
+        - name: state
+          in: query
+          description: The state of the flow, to match with the one in the flow's cookie
+          schema:
+            type: string
+        - name: error
+          in: query
+          description: The error returned by ESN Accounts, if any
+          schema:
+            type: string
+      responses:
+        302:
+          description: Redirect to the front-end
   /configurations:
     get:
       summary: Get the platform's configurations

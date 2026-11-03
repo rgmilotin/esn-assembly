@@ -88,7 +88,18 @@
     "EN": "English"
   },
   "AUTH": {
-    "LOGIN_WITH_ESN_ACCOUNTS": "Sign in with ESN Accounts"
+    "LOGIN_WITH_ESN_ACCOUNTS": "Sign in with ESN Accounts",
+    "LOGIN_WITH_ESN_ACCOUNTS_OAUTH": "Sign in with ESN Accounts (OAuth)",
+    "LOGIN_WITH_GOOGLE": "Sign in with Google",
+    "GOOGLE_COMING_SOON": "Sign-in with Google is coming soon.",
+    "ESNACC_OAUTH_ERRORS": {
+      "ACCESS_DENIED": "Sign-in cancelled: access to your ESN Account wasn't granted.",
+      "INVALID_REQUEST": "ESN Accounts couldn't complete the sign-in. Please try again.",
+      "INVALID_STATE": "The sign-in expired or was interrupted. Please try again.",
+      "ESN_ACCOUNTS_ERROR": "ESN Accounts didn't respond as expected. Please try again later.",
+      "NO_LEGACY_ID": "Your ESN Account can't be linked to this app through OAuth yet. Please use \"Sign in with ESN Accounts\".",
+      "GENERIC": "Sign-in failed. Please try again."
+    }
   },
   "TABS": {
     "DASHBOARD": "Dashboard",

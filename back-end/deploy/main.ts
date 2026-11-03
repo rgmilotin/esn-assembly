@@ -74,6 +74,15 @@ const apiResources: ResourceController[] = [
   { name: 'vote', paths: ['/voting-sessions/{sessionId}/vote'] }
 ];
 
+/**
+ * Sign-in with ESN Accounts through OAuth 2.0: deployed only in the stages that enable it (`esnAccountsOAuth`).
+ */
+const esnAccountsOAuthResource: ResourceController = {
+  name: 'esnaccOAuth',
+  paths: ['/esnacc_oauth_authorize', '/esnacc_oauth_callback'],
+  environment: { API_DOMAIN: parameters.apiDomain }
+};
+
 const tables: { [tableName: string]: DDBTable } = {
   configurations: {
     PK: { name: 'PK', type: DDB.AttributeType.STRING }
@@ -299,7 +308,7 @@ const createApp = async (): Promise<void> => {
     apiDomain: parameters.apiDomain,
     apiDefinitionFile: './swagger.yaml',
     webSocketApiDomain: parameters.webSocketApiDomain,
-    resourceControllers: apiResources,
+    resourceControllers: STAGE_VARIABLES.esnAccountsOAuth ? [...apiResources, esnAccountsOAuthResource] : apiResources,
     tables,
     mediaBucketArn: mediaStack.mediaBucketArn,
     ses: { identityArn: sesStack.identityArn, notificationTopicArn: sesStack.notificationTopicArn },

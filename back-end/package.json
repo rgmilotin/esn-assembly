@@ -1,9 +1,10 @@
 {
-  "version": "1.10.2",
+  "version": "1.10.3",
   "name": "back-end",
   "scripts": {
     "lint": "eslint --ext .ts",
     "compile": "tsc --build",
+    "test": "tsc -p tsconfig.test.json && node --test .test-build/test/esnacc.test.js",
     "deploy": "cdk deploy",
     "cdk": "cdk"
   },
