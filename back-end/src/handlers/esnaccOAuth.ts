@@ -19,7 +19,7 @@ import {
 } from '../esnacc/oauth';
 import { extractRoles } from '../esnacc/roles';
 import { MissingLegacyIdError, mapUserInfoToUser } from '../esnacc/userMapping';
-import { OAuthRequestCookie } from '../esnacc/types';
+import { OAuthRequestCookie, UserInfo } from '../esnacc/types';
 
 import { User } from '../models/user.model';
 import { Configurations } from '../models/configurations.model';
@@ -114,12 +114,21 @@ class ESNAccountsOAuth extends ResourceController {
         redirectUri: getRedirectUri(requireConfig(API_DOMAIN, 'API_DOMAIN'), STAGE)
       });
       const roles = extractRoles(userInfo);
+      // to verify the (best-effort) mapping on dev, logged before mapping so that it's there also if the mapping
+      // fails: claims' names and types, the identifiers and the roles; never tokens
+      this.logger.debug('ESN Accounts OAuth userinfo received', {
+        claims: describeClaims(userInfo),
+        identifiers: {
+          sub: userInfo.sub,
+          legacy_sub: userInfo.legacy_sub,
+          preferred_username: userInfo.preferred_username,
+          nickname: userInfo.nickname
+        },
+        roles
+      });
       const userData = mapUserInfoToUser(userInfo, roles);
-      // to verify the (best-effort) mapping on dev: claims' names and mapped values only, never tokens
       const { userId, sectionCode, section, country } = userData;
       this.logger.debug('ESN Accounts OAuth userinfo mapped', {
-        claims: Object.keys(userInfo),
-        roles,
         mapped: { userId, roles: userData.roles, sectionCode, section, country }
       });
 
@@ -218,3 +227,14 @@ const getAuthPageURL = (localhostPort: number | null | undefined, params: Record
     .join('&');
   return `${appURL}/auth?${query}`;
 };
+
+/**
+ * The names of the userinfo's claims, with the type of their values (not the values).
+ */
+const describeClaims = (userInfo: UserInfo): Record<string, string> =>
+  Object.fromEntries(
+    Object.entries(userInfo).map(([claim, value]) => [
+      claim,
+      Array.isArray(value) ? 'array' : value === null ? 'null' : typeof value
+    ])
+  );

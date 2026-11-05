@@ -11,15 +11,28 @@ import { ESNDetailedRole, RoleEntry, UserInfo } from './types';
 export function extractRoles(userInfo: UserInfo): RoleEntry[] {
   const roles: RoleEntry[] = [];
 
-  const groups = userInfo.groups && typeof userInfo.groups === 'object' ? userInfo.groups : {};
-  for (const [groupId, role] of Object.entries(groups)) {
-    if (typeof role !== 'string') continue;
+  if (Array.isArray(userInfo.groups)) {
+    // the format returned by ESN Accounts: a list of `<scope>:<role>`, e.g. `RO-TIMI-ESN:section-active_member`
+    for (const scopedRole of userInfo.groups) {
+      if (typeof scopedRole !== 'string') continue;
 
-    roles.push({
-      role,
-      source: 'groups',
-      group: groupId
-    });
+      const separatorIndex = scopedRole.indexOf(':');
+      if (separatorIndex > 0) {
+        const scope = scopedRole.slice(0, separatorIndex);
+        roles.push({ role: scopedRole.slice(separatorIndex + 1), source: 'groups', group: scope, scope });
+      } else roles.push({ role: scopedRole, source: 'groups' });
+    }
+  } else if (userInfo.groups && typeof userInfo.groups === 'object') {
+    // the format described by the spec: the key is the group ID, the value is the role
+    for (const [groupId, role] of Object.entries(userInfo.groups)) {
+      if (typeof role !== 'string') continue;
+
+      roles.push({
+        role,
+        source: 'groups',
+        group: groupId
+      });
+    }
   }
 
   const detailedGroups = Array.isArray(userInfo.detailed_groups) ? userInfo.detailed_groups : [];

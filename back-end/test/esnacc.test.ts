@@ -52,7 +52,7 @@ const fakeESNAccounts = (responses: { token?: HttpResponse; userinfo?: HttpRespo
       requests.push(request);
       if (request.url === ENDPOINT_TOKEN)
         return responses.token ?? json(200, { access_token: 'ACCESS_TOKEN', token_type: 'Bearer' });
-      if (request.url === ENDPOINT_USERINFO) return responses.userinfo ?? json(200, { sub: '1', sub_legacy: 'jdoe' });
+      if (request.url === ENDPOINT_USERINFO) return responses.userinfo ?? json(200, { sub: '1', legacy_sub: 'jdoe' });
       return { status: 404, body: 'Not found' };
     }
   };
@@ -252,7 +252,7 @@ describe('callback', () => {
 
   it('requests userinfo with the bearer access token (spec test 7) and returns it, unknown claims included (spec test 13)', async () => {
     const { http, requests } = fakeESNAccounts({
-      userinfo: json(200, { sub: '1', sub_legacy: 'jdoe', future_claim: 42 })
+      userinfo: json(200, { sub: '1', legacy_sub: 'jdoe', future_claim: 42 })
     });
     const userInfo = await callback({ code: 'CODE', state: 'STATE' }, http);
 
@@ -274,7 +274,91 @@ describe('callback', () => {
   });
 });
 
+/**
+ * A userinfo with the same shape as a real one returned by ESN Accounts (an active member of two sections and of two
+ * regional platforms), with made-up personal data; the CAS login produced, for the same person, the user below.
+ */
+const REAL_SHAPED_USERINFO: UserInfo = {
+  sub: '6db5c0b5-0000-4000-8000-000000000000',
+  name: 'Jane Doe',
+  given_name: 'Jane',
+  family_name: 'Doe',
+  email: 'jane.personal@example.org',
+  email_verified: true,
+  picture: 'https://example.org/avatars/jane.jpg',
+  esn_email: 'jane.doe@university.example.org',
+  nickname: 'jdoe',
+  preferred_username: 'jdoe',
+  address: { cc: 'RO', country: 'Romania' },
+  updated_at: 1792816646,
+  nationality: 'RO',
+  detailed_groups: [
+    {
+      label: 'ESN Timisoara',
+      type: 'section',
+      scope: 'RO-TIMI-ESN',
+      roles: [
+        { role: 'section-active_member', label: 'Active member' },
+        { role: 'all', label: 'Member of a section of RO' },
+        { role: 'all', label: 'Member of section RO-TIMI-ESN' }
+      ]
+    },
+    {
+      label: 'ESN Óbuda University',
+      type: 'section',
+      scope: 'HU-BUPE-OBU',
+      roles: [
+        { role: 'section-active_member', label: 'Active member' },
+        { role: 'all', label: 'Member of a section of HU' },
+        { role: 'all', label: 'Member of section HU-BUPE-OBU' }
+      ]
+    },
+    {
+      label: 'South Eastern European Platform',
+      type: 'Regional Platforms',
+      scope: 'SEEP',
+      roles: { role: 'member', label: 'Member of SEEP' }
+    },
+    {
+      label: 'Central European Platform',
+      type: 'Regional Platforms',
+      scope: 'CEP',
+      roles: { role: 'member', label: 'Member of CEP' }
+    }
+  ],
+  groups: [
+    'RO-TIMI-ESN:section-active_member',
+    'RO:all',
+    'RO-TIMI-ESN:all',
+    'HU-BUPE-OBU:section-active_member',
+    'HU:all',
+    'HU-BUPE-OBU:all',
+    'SEEP:member',
+    'CEP:member'
+  ],
+  legacy_sub: 'jdoe'
+};
+const USER_FROM_CAS_LOGIN = {
+  userId: 'jdoe',
+  email: 'jane.doe@university.example.org',
+  firstName: 'Jane',
+  lastName: 'Doe',
+  roles: ['Local.activeMember'],
+  sectionCode: 'RO-TIMI-ESN',
+  section: 'ESN Timisoara',
+  country: 'ESN Romania',
+  avatarURL: 'https://example.org/avatars/jane.jpg'
+};
+
 describe('roles extraction', () => {
+  it('reads the list of scoped roles returned by ESN Accounts', () => {
+    assert.deepEqual(extractRoles({ groups: ['RO-TIMI-ESN:section-active_member', 'SEEP:member', 'no-scope'] }), [
+      { role: 'section-active_member', source: 'groups', group: 'RO-TIMI-ESN', scope: 'RO-TIMI-ESN' },
+      { role: 'member', source: 'groups', group: 'SEEP', scope: 'SEEP' },
+      { role: 'no-scope', source: 'groups' }
+    ]);
+  });
+
   it('reads flat OAuth groups (spec test 8)', () => {
     assert.deepEqual(
       extractRoles({ groups: { '8': 'COMMITTEE:itcom-chair', '42': 'NATIONAL_ORGANISATION:president' } }),
@@ -305,60 +389,73 @@ describe('roles extraction', () => {
 });
 
 describe('user mapping', () => {
+  it('maps a real-shaped profile to the same user that the CAS login produced', () => {
+    assert.deepEqual(mapUserInfoToUser(REAL_SHAPED_USERINFO, extractRoles(REAL_SHAPED_USERINFO)), USER_FROM_CAS_LOGIN);
+  });
+
   it('refuses profiles without a legacy (CAS) username', () => {
-    assert.throws(() => mapUserInfoToUser({ sub: '123' }, []), MissingLegacyIdError);
-    assert.throws(() => mapUserInfoToUser({ sub: '123', sub_legacy: '  ' }, []), MissingLegacyIdError);
+    assert.throws(() => mapUserInfoToUser({ sub: '123', preferred_username: 'jdoe' }, []), MissingLegacyIdError);
+    assert.throws(() => mapUserInfoToUser({ sub: '123', legacy_sub: '  ' }, []), MissingLegacyIdError);
+    assert.throws(() => mapUserInfoToUser({ sub: '123', legacy_sub: 42 as any }, []), /found: number/);
   });
 
   it('uses the lower-cased CAS username as user ID, like the CAS login', () => {
-    assert.equal(mapUserInfoToUser({ sub_legacy: ' JDoe ' }, []).userId, 'jdoe');
+    assert.equal(mapUserInfoToUser({ legacy_sub: ' JDoe ' }, []).userId, 'jdoe');
+    assert.equal(mapUserInfoToUser({ sub_legacy: 'JDoe' }, []).userId, 'jdoe', "ESNscope's name for the claim");
   });
 
-  it('maps the profile claims to the user fields', () => {
+  it('takes section, section code and country from the groups', () => {
     const user = mapUserInfoToUser(
       {
-        sub_legacy: 'jdoe',
-        given_name: 'Jane',
-        family_name: 'Doe',
-        email: 'jane@example.org',
-        picture: 'https://example.org/jane.jpg',
-        address: { country: 'Hungary' },
+        legacy_sub: 'jdoe',
         detailed_groups: [
-          { label: 'ESN Budapest', type: 'section', scope: 'local', roles: [] },
-          { label: 'ESN Hungary', type: 'country', scope: 'national', roles: [] }
+          { label: 'Central European Platform', type: 'Regional Platforms', scope: 'CEP', roles: [] },
+          { label: 'ESN ELTE', type: 'section', scope: 'HU-BUDA-ELTE', roles: [] },
+          { label: 'ESN Timisoara', type: 'section', scope: 'RO-TIMI-ESN', roles: [] }
         ]
       },
       []
     );
-    assert.deepEqual(user, {
-      userId: 'jdoe',
-      email: 'jane@example.org',
-      firstName: 'Jane',
-      lastName: 'Doe',
-      roles: [],
-      sectionCode: null,
-      section: 'ESN Budapest',
-      country: 'ESN Hungary',
-      avatarURL: 'https://example.org/jane.jpg'
-    });
+    assert.equal(user.sectionCode, 'HU-BUDA-ELTE', 'the first section');
+    assert.equal(user.section, 'ESN ELTE');
+    assert.equal(user.country, 'ESN Hungary', 'from the section code');
+
+    const withCountryGroup = mapUserInfoToUser(
+      {
+        legacy_sub: 'jdoe',
+        detailed_groups: [
+          { label: 'ESN ELTE', type: 'section', scope: 'HU-BUDA-ELTE', roles: [] },
+          { label: 'ESN Hungary (NO)', type: 'country', scope: 'HU', roles: [] }
+        ]
+      },
+      []
+    );
+    assert.equal(withCountryGroup.country, 'ESN Hungary (NO)', "the country's group, when present");
   });
 
   it("doesn't crash on missing optional claims and always has a first name (spec test 11)", () => {
-    const user = mapUserInfoToUser({ sub_legacy: 'jdoe' }, []);
+    const user = mapUserInfoToUser({ legacy_sub: 'jdoe', address: { country: 'Hungary' } }, []);
     assert.equal(user.firstName, 'jdoe');
     assert.equal(user.lastName, '');
     assert.equal(user.email, null);
+    assert.equal(user.sectionCode, null);
+    assert.equal(user.section, null);
     assert.equal(user.country, null, "the personal address' country is never used");
-    assert.deepEqual(mapUserInfoToUser({ sub_legacy: 'jdoe', name: 'Jane Mary Doe' }, []), {
+    assert.deepEqual(mapUserInfoToUser({ legacy_sub: 'jdoe', name: 'Jane Mary Doe' }, []), {
       ...user,
       firstName: 'Jane',
       lastName: 'Mary Doe'
     });
-    assert.equal(mapUserInfoToUser({ sub_legacy: 'jdoe', esn_email: 'jane@esn.org' }, []).email, 'jane@esn.org');
+    assert.equal(mapUserInfoToUser({ legacy_sub: 'jdoe', email: 'jane@example.org' }, []).email, 'jane@example.org');
   });
 
-  it('translates roles to the legacy (CAS) format (best effort)', () => {
+  it('translates roles to the legacy (CAS) format', () => {
     const fromGroups = (role: string): string => toLegacyRole({ role, source: 'groups' });
+    assert.equal(fromGroups('section-active_member'), 'Local.activeMember');
+    assert.equal(fromGroups('section-regular_board_member'), 'Local.regularBoardMember');
+    assert.equal(fromGroups('country-president'), 'National.president');
+    assert.equal(fromGroups('all'), null, 'generic membership of a section');
+    assert.equal(fromGroups('member'), null, 'membership of a regional platform');
     assert.equal(fromGroups('NATIONAL_ORGANISATION:president'), 'National.president');
     assert.equal(fromGroups('SECTION:regular-board-member'), 'Local.regularBoardMember');
     assert.equal(fromGroups('COMMITTEE:itcom-chair'), 'International.itcomChair');

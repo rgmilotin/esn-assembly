@@ -53,6 +53,10 @@ export interface UserInfo {
   /**
    * The legacy (CAS) username of the account: it's the ID of the users in the platform.
    */
+  legacy_sub?: string;
+  /**
+   * The name of `legacy_sub` in ESNscope's types (not returned by ESN Accounts, so far).
+   */
   sub_legacy?: string;
   name?: string;
   given_name?: string;
@@ -68,11 +72,16 @@ export interface UserInfo {
   address?: ESNUserAddress;
   other?: ESNSocialMedia;
   updated_at?: number;
+  nationality?: string;
+  /**
+   * Groups (sections, regional platforms, etc.) and the user's roles in them; `scope` is e.g. the section code.
+   */
   detailed_groups?: ESNDetailedGroup[];
   /**
-   * OAuth 2.0 roles: the key is the group ID, the value is the role.
+   * OAuth 2.0 roles. ESN Accounts returns a list of `<scope>:<role>`, e.g. `RO-TIMI-ESN:section-active_member`;
+   * the spec also describes an object, where the key is the group ID and the value is the role.
    */
-  groups?: Record<string, string>;
+  groups?: string[] | Record<string, string>;
   [key: string]: unknown;
 }
 
