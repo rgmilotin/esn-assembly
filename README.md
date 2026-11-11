@@ -9,7 +9,7 @@ If you are a **National Organization (NO) of [Erasmus Student Network (ESN)](htt
 
 - **[How to contribute / developers guide](/CONTRIBUTING.md)**.
 - **[How to init (deploy) the project](/HOW-TO-DEPLOY.md)**.
-- **[Sign-in with ESN Accounts through OAuth 2.0 (dev stage only, for now)](/OAUTH.md)**.
+- **[Sign-in with ESN Accounts through OAuth 2.0](/OAUTH.md)**.
 
 ## Videos
 

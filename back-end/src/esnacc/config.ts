@@ -3,12 +3,16 @@
  * Reference: `ESNacc_OAUTH_INTEGRATION_SPEC.md` in https://github.com/ESN-Hungary/esnscope.
  */
 
-import { ESNACC_OAUTH_CALLBACK_PATH } from '../models/esnaccOAuth.model';
-
+export const ESN_ACCOUNTS_URL = 'https://accounts.esn.org';
 export const SCOPE = 'oauth2_access_to_profile_information';
-export const ENDPOINT_AUTHORIZATION = 'https://accounts.esn.org/oauth/authorize';
-export const ENDPOINT_TOKEN = 'https://accounts.esn.org/oauth/token';
-export const ENDPOINT_USERINFO = 'https://accounts.esn.org/oauth/v2/userinfo';
+export const ENDPOINT_AUTHORIZATION = ESN_ACCOUNTS_URL.concat('/oauth/authorize');
+export const ENDPOINT_TOKEN = ESN_ACCOUNTS_URL.concat('/oauth/token');
+export const ENDPOINT_USERINFO = ESN_ACCOUNTS_URL.concat('/oauth/v2/userinfo');
+
+/**
+ * The API path where ESN Accounts redirects the user after the authorization (part of the registered redirect URI).
+ */
+export const CALLBACK_PATH = '/esnacc_oauth_callback';
 
 /**
  * The cookie that keeps `state` and the PKCE verifier between the authorization request and the callback.
@@ -30,19 +34,4 @@ export function requireConfig(value: string | undefined, name: string): string {
  */
 export function getClientCredentialsParameterName(project: string): string {
   return `/${project}/esnacc-oauth`;
-}
-
-/**
- * The redirect URI registered with ESN Accounts.
- * It is fixed for each stage and never derived from the request's headers.
- */
-export function getRedirectUri(apiDomain: string, stage: string): string {
-  return `https://${apiDomain.replace(/\/+$/, '')}/${stage}${ESNACC_OAUTH_CALLBACK_PATH}`;
-}
-
-/**
- * The cookie is sent by the browser only to the callback.
- */
-export function getCookiePath(stage: string): string {
-  return `/${stage}${ESNACC_OAUTH_CALLBACK_PATH}`;
 }

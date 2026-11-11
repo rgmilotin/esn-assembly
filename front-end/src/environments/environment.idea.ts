@@ -1,4 +1,4 @@
-import { parameters, stages } from '../../../back-end/deploy/environments';
+import { parameters } from '../../../back-end/deploy/environments';
 
 /**
  * The stage to use for API (and websocket) requests.
@@ -14,9 +14,5 @@ export const environment = {
     api: { url: parameters.apiDomain, stage: STAGE },
     socket: { url: parameters.webSocketApiDomain, stage: STAGE },
     ionicExtraModules: ['common']
-  },
-  /**
-   * Whether the API stage supports the sign-in with ESN Accounts through OAuth 2.0 (and shows the Google sign-in).
-   */
-  esnAccountsOAuth: !!stages[STAGE]?.esnAccountsOAuth
+  }
 };

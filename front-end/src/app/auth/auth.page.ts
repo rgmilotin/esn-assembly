@@ -4,7 +4,7 @@ import { IDEAStorageService, IDEATranslationsService } from '@idea-ionic/common'
 
 import { AppService } from '../app.service';
 
-import { ESNACC_OAUTH_AUTHORIZE_PATH, ESNAccountsOAuthErrors } from '@models/esnaccOAuth.model';
+import { ESNAccountsOAuthErrors } from '@models/esnaccOAuth.model';
 
 import { environment as env } from '@env';
 
@@ -21,7 +21,6 @@ export class AuthPage implements OnInit {
   @Input() error: string;
 
   version = env.idea.app.version;
-  esnAccountsOAuth = env.esnAccountsOAuth;
 
   constructor(
     private toastCtrl: ToastController,
@@ -56,7 +55,7 @@ export class AuthPage implements OnInit {
   }
 
   startLoginFlowWithESNAccountsOAuth(): void {
-    const apiAuthorizeURL = `https://${env.idea.api.url}/${env.idea.api.stage}${ESNACC_OAUTH_AUTHORIZE_PATH}`;
+    const apiAuthorizeURL = `https://${env.idea.api.url}/${env.idea.api.stage}/esnacc_oauth_authorize`;
     const localhost = location.hostname.startsWith('localhost') ? '?localhost=8100' : '';
     window.location.assign(`${apiAuthorizeURL}${localhost}`);
   }

@@ -5,7 +5,7 @@
 import { sign } from 'jsonwebtoken';
 import { DynamoDB, HandledError, ResourceController, SystemsManager } from 'idea-aws';
 
-import { getClientCredentialsParameterName, getCookiePath, getRedirectUri, requireConfig } from '../esnacc/config';
+import { CALLBACK_PATH, getClientCredentialsParameterName, requireConfig } from '../esnacc/config';
 import {
   OAuthFlowError,
   buildAuthorizationUrl,
@@ -17,13 +17,12 @@ import {
   randomValue,
   serializeOAuthCookie
 } from '../esnacc/oauth';
-import { extractRoles } from '../esnacc/roles';
-import { MissingLegacyIdError, mapUserInfoToUser } from '../esnacc/userMapping';
+import { MissingUsernameError, mapUserInfoToUser } from '../esnacc/userMapping';
 import { OAuthRequestCookie, UserInfo } from '../esnacc/types';
 
 import { User } from '../models/user.model';
 import { Configurations } from '../models/configurations.model';
-import { ESNACC_OAUTH_CALLBACK_PATH, ESNAccountsOAuthErrors } from '../models/esnaccOAuth.model';
+import { ESNAccountsOAuthErrors } from '../models/esnaccOAuth.model';
 
 ///
 /// CONSTANTS, ENVIRONMENT VARIABLES, HANDLER
@@ -32,8 +31,6 @@ import { ESNACC_OAUTH_CALLBACK_PATH, ESNAccountsOAuthErrors } from '../models/es
 const JWT_EXPIRE_TIME = '1 day';
 
 const PROJECT = process.env.PROJECT;
-const STAGE = process.env.STAGE;
-const API_DOMAIN = process.env.API_DOMAIN;
 const APP_DOMAIN = process.env.APP_DOMAIN;
 const APP_URL = 'https://'.concat(APP_DOMAIN);
 
@@ -54,16 +51,34 @@ export const handler = (ev: any, _: any, cb: any): Promise<void> => new ESNAccou
 
 /**
  * Sign-in with ESN Accounts through OAuth 2.0 (authorization code + PKCE), alternative to the CAS login (`login.ts`).
- * It produces the same user and token as the CAS login, so the rest of the platform works the same way.
+ * It produces the same user as the CAS login (with the roles in the OAuth format), so the platform works the same way.
  */
 class ESNAccountsOAuth extends ResourceController {
+  host: string;
+  stage: string;
+
   constructor(event: any, callback: any) {
     super(event, callback);
     this.callback = callback;
+    this.host = event.headers?.host ?? null;
+    this.stage = process.env.STAGE ?? null;
+  }
+
+  /**
+   * The redirect URI registered with ESN Accounts, built as the CAS login builds its service URL (`login.ts`).
+   */
+  private get callbackURL(): string {
+    return `https://${this.host}${this.cookiePath}`;
+  }
+  /**
+   * The cookie is sent by the browser only to the callback.
+   */
+  private get cookiePath(): string {
+    return `/${this.stage}${CALLBACK_PATH}`;
   }
 
   protected async getResources(): Promise<any> {
-    if (this.resourcePath.endsWith(ESNACC_OAUTH_CALLBACK_PATH)) await this.handleCallback();
+    if (this.resourcePath.endsWith(CALLBACK_PATH)) await this.handleCallback();
     else await this.startAuthorization();
   }
 
@@ -79,13 +94,13 @@ class ESNAccountsOAuth extends ResourceController {
 
       const authorizationURL = buildAuthorizationUrl({
         clientId,
-        redirectUri: getRedirectUri(requireConfig(API_DOMAIN, 'API_DOMAIN'), STAGE),
+        redirectUri: this.callbackURL,
         state,
         codeChallenge: createCodeChallenge(codeVerifier)
       });
       const oauthCookie: OAuthRequestCookie = { state, codeVerifier };
       if (localhostPort) oauthCookie.localhostPort = localhostPort;
-      const cookie = serializeOAuthCookie(oauthCookie, await getJwtSecretFromSystemsManager(), getCookiePath(STAGE));
+      const cookie = serializeOAuthCookie(oauthCookie, await getJwtSecretFromSystemsManager(), this.cookiePath);
 
       this.redirect(authorizationURL, [cookie]);
     } catch (err) {
@@ -98,7 +113,7 @@ class ESNAccountsOAuth extends ResourceController {
    * Complete the flow: validate the callback, get the profile from ESN Accounts and sign in the user.
    */
   private async handleCallback(): Promise<void> {
-    const expiredCookie = expireOAuthCookie(getCookiePath(STAGE));
+    const expiredCookie = expireOAuthCookie(this.cookiePath);
     let oauthCookie: OAuthRequestCookie | null = null;
 
     try {
@@ -111,22 +126,14 @@ class ESNAccountsOAuth extends ResourceController {
         oauthCookie,
         clientId,
         clientSecret,
-        redirectUri: getRedirectUri(requireConfig(API_DOMAIN, 'API_DOMAIN'), STAGE)
+        redirectUri: this.callbackURL
       });
-      const roles = extractRoles(userInfo);
-      // to verify the (best-effort) mapping on dev, logged before mapping so that it's there also if the mapping
-      // fails: claims' names and types, the identifiers and the roles; never tokens
+      // logged before mapping (on dev, at DEBUG level), so that it's there also if the mapping fails; never tokens
       this.logger.debug('ESN Accounts OAuth userinfo received', {
         claims: describeClaims(userInfo),
-        identifiers: {
-          sub: userInfo.sub,
-          legacy_sub: userInfo.legacy_sub,
-          preferred_username: userInfo.preferred_username,
-          nickname: userInfo.nickname
-        },
-        roles
+        identifiers: { sub: userInfo.sub, preferred_username: userInfo.preferred_username }
       });
-      const userData = mapUserInfoToUser(userInfo, roles);
+      const userData = mapUserInfoToUser(userInfo);
       const { userId, sectionCode, section, country } = userData;
       this.logger.debug('ESN Accounts OAuth userinfo mapped', {
         mapped: { userId, roles: userData.roles, sectionCode, section, country }
@@ -154,7 +161,7 @@ class ESNAccountsOAuth extends ResourceController {
     } catch (err) {
       let errorCode = ESNAccountsOAuthErrors.GENERIC;
       if (err instanceof OAuthFlowError) errorCode = err.code;
-      if (err instanceof MissingLegacyIdError) errorCode = ESNAccountsOAuthErrors.NO_LEGACY_ID;
+      if (err instanceof MissingUsernameError) errorCode = ESNAccountsOAuthErrors.NO_USERNAME;
       this.logger.error('ESN ACCOUNTS OAUTH: CALLBACK', { errorCode, message: (err as Error)?.message });
 
       this.redirect(getAuthPageURL(oauthCookie?.localhostPort, { error: errorCode }), [expiredCookie]);

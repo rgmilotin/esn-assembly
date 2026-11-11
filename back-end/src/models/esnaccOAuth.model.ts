@@ -1,14 +1,4 @@
 /**
- * The API path (relative to the API stage) that starts the sign-in with ESN Accounts through OAuth 2.0.
- */
-export const ESNACC_OAUTH_AUTHORIZE_PATH = '/esnacc_oauth_authorize';
-/**
- * The API path (relative to the API stage) where ESN Accounts redirects the user after the OAuth 2.0 authorization.
- * It's part of the redirect URI registered with ESN Accounts.
- */
-export const ESNACC_OAUTH_CALLBACK_PATH = '/esnacc_oauth_callback';
-
-/**
  * The errors of the sign-in with ESN Accounts through OAuth 2.0, as reported back to the front-end.
  */
 export enum ESNAccountsOAuthErrors {
@@ -29,9 +19,9 @@ export enum ESNAccountsOAuthErrors {
    */
   ESN_ACCOUNTS_ERROR = 'esnacc_error',
   /**
-   * The ESN Accounts profile has no legacy (CAS) username, so it can't be linked to the platform's users.
+   * The ESN Accounts profile has no username (`preferred_username`), so it can't be linked to the platform's users.
    */
-  NO_LEGACY_ID = 'no_legacy_id',
+  NO_USERNAME = 'no_username',
   /**
    * Any other error.
    */

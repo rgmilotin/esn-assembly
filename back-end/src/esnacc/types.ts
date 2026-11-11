@@ -50,14 +50,6 @@ export interface ESNDetailedGroup {
 
 export interface UserInfo {
   sub?: string;
-  /**
-   * The legacy (CAS) username of the account: it's the ID of the users in the platform.
-   */
-  legacy_sub?: string;
-  /**
-   * The name of `legacy_sub` in ESNscope's types (not returned by ESN Accounts, so far).
-   */
-  sub_legacy?: string;
   name?: string;
   given_name?: string;
   family_name?: string;
@@ -66,6 +58,9 @@ export interface UserInfo {
   picture?: string;
   esn_email?: string;
   nickname?: string;
+  /**
+   * The ESN Accounts username: it's the ID of the users in the platform.
+   */
   preferred_username?: string;
   gender?: string;
   birthdate?: string;
@@ -78,23 +73,10 @@ export interface UserInfo {
    */
   detailed_groups?: ESNDetailedGroup[];
   /**
-   * OAuth 2.0 roles. ESN Accounts returns a list of `<scope>:<role>`, e.g. `RO-TIMI-ESN:section-active_member`;
-   * the spec also describes an object, where the key is the group ID and the value is the role.
+   * OAuth 2.0 roles, as `<scope>:<role>`: e.g. `HU-BUDA-ELTE:section-active_member`, `HU:country-president`.
    */
-  groups?: string[] | Record<string, string>;
+  groups?: string[];
   [key: string]: unknown;
-}
-
-export interface RoleEntry {
-  role: string;
-  label?: string;
-  source: 'groups' | 'detailed_groups';
-  group?: string;
-  /**
-   * The type of the group (`detailed_groups` only), e.g. "section" or "committee".
-   */
-  type?: string;
-  scope?: string;
 }
 
 /**

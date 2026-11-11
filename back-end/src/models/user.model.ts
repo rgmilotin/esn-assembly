@@ -19,28 +19,48 @@ export enum UserRoles {
 }
 
 /**
- * The map between the platform's roles with the (known) interesting roles on ESN Accounts.
- * Roles that ends with "*" are intended to be: "any role with that prefix".
+ * The map between the platform's roles with the (known) interesting roles on ESN Accounts, in both the formats of
+ * the CAS login (e.g. `local.regularboardmember`) and the OAuth login (`<scope>:<role>`, e.g.
+ * `hu-buda-elte:section-regular_board_member`), as in the "ESN Accounts - roles mapping" sheet.
+ * "*" stands for any text (e.g. `*:section-*`: any section role of any section).
  * Note: all roles are lower-cased (since they will be handled with a case-insensitive logic).
  */
 export const ESN_ACCOUNTS_ROLES_MAP: { [userRole: string]: string[] } = {
   INTERNATIONAL_BOARD: [
     'international.president',
     'international.vicepresident',
+    'international.vpgovernance',
+    'international.vpdevelopment',
     'international.treasurer',
     'international.webprojectadministrator',
-    'international.externalrelations'
+    'international.externalrelations',
+    'int:international-board',
+    'int:international-president',
+    'int:international-vp_governance',
+    'int:international-vp_development',
+    'int:international-treasurer',
+    'int:international-communication',
+    'int:international-wpa'
   ],
-  INTERNATIONAL_SECRETARIAT: ['international.officestaff'],
-  INTERNATIONAL_GA_CT: ['international.cnrsecretary', 'international.agmchair', 'international.cnradmin'],
-  INTERNATIONAL_AB: ['international.ab.*'],
-  INTERNATIONAL_AC: ['international.ac.*'],
-  INTERNATIONAL_LEVEL: ['international.*'],
-  NATIONAL_BOARD: ['national.regularboardmember'],
-  NATIONAL_LEVEL: ['national.*'],
-  LOCAL_BOARD: ['local.regularboardmember'],
-  LOCAL_LEVEL: ['local.*']
+  INTERNATIONAL_SECRETARIAT: ['international.officestaff', 'int:international-staff'],
+  INTERNATIONAL_GA_CT: [
+    'international.cnrsecretary',
+    'international.agmchair',
+    'international.cnradmin',
+    'body:ga-chair',
+    'body:ga-administrator',
+    'body:ga-secretary'
+  ],
+  INTERNATIONAL_AB: ['international.ab.*', 'body:ab*'],
+  INTERNATIONAL_AC: ['international.ac.*', 'body:ac*'],
+  // note: the sheet spells the committees' scope both as `COMMITTEE` and `COMMITEE`
+  INTERNATIONAL_LEVEL: ['international.*', 'int:*', 'body:*', 'committee:*', 'commitee:*', 'team:*'],
+  NATIONAL_BOARD: ['national.regularboardmember', '*:country-regular_board_member'],
+  NATIONAL_LEVEL: ['national.*', '*:country-*'],
+  LOCAL_BOARD: ['local.regularboardmember', '*:section-regular_board_member'],
+  LOCAL_LEVEL: ['local.*', '*:section-*']
 };
+const escapeRegExp = (text: string): string => text.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
 
 export class User extends Resource {
   /**
@@ -106,9 +126,7 @@ export class User extends Resource {
       .map(userRole => userRole.toLowerCase())
       .some(userRole =>
         allowedESNAccountsRoles.some(allowedRole =>
-          allowedRole.endsWith('*')
-            ? userRole.startsWith(allowedRole.slice(0, allowedRole.length - 1))
-            : allowedRole === userRole
+          new RegExp(`^${allowedRole.split('*').map(escapeRegExp).join('.*')}$`).test(userRole)
         )
       );
   };

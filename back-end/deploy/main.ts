@@ -18,6 +18,7 @@ import { parameters, stages, Stage, PROD_CUSTOM_DOMAIN, SES_SOURCE_ADDRESS } fro
 const apiResources: ResourceController[] = [
   { name: 'auth', isAuthFunction: true },
   { name: 'login', paths: ['/login'] },
+  { name: 'esnaccOAuth', paths: ['/esnacc_oauth_authorize', '/esnacc_oauth_callback'] },
   { name: 'configurations', paths: ['/configurations'] },
   { name: 'media', paths: ['/media'] },
   { name: 'categories', paths: ['/categories', '/categories/{categoryId}'] },
@@ -73,15 +74,6 @@ const apiResources: ResourceController[] = [
   { name: 'votingSessions', paths: ['/voting-sessions', '/voting-sessions/{sessionId}'] },
   { name: 'vote', paths: ['/voting-sessions/{sessionId}/vote'] }
 ];
-
-/**
- * Sign-in with ESN Accounts through OAuth 2.0: deployed only in the stages that enable it (`esnAccountsOAuth`).
- */
-const esnAccountsOAuthResource: ResourceController = {
-  name: 'esnaccOAuth',
-  paths: ['/esnacc_oauth_authorize', '/esnacc_oauth_callback'],
-  environment: { API_DOMAIN: parameters.apiDomain }
-};
 
 const tables: { [tableName: string]: DDBTable } = {
   configurations: {
@@ -308,7 +300,7 @@ const createApp = async (): Promise<void> => {
     apiDomain: parameters.apiDomain,
     apiDefinitionFile: './swagger.yaml',
     webSocketApiDomain: parameters.webSocketApiDomain,
-    resourceControllers: STAGE_VARIABLES.esnAccountsOAuth ? [...apiResources, esnAccountsOAuthResource] : apiResources,
+    resourceControllers: apiResources,
     tables,
     mediaBucketArn: mediaStack.mediaBucketArn,
     ses: { identityArn: sesStack.identityArn, notificationTopicArn: sesStack.notificationTopicArn },

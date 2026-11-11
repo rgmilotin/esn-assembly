@@ -46,8 +46,7 @@ export const stages: { [stage: string]: Stage } = {
   dev: {
     domain: 'dev.'.concat(DOMAIN),
     destroyDataOnDelete: true,
-    logLevel: 'DEBUG',
-    esnAccountsOAuth: true
+    logLevel: 'DEBUG'
   }
 };
 
@@ -100,9 +99,4 @@ export interface Stage {
    * The minimum level of log to print in functions (default: `INFO`).
    */
   logLevel?: 'TRACE' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'FATAL';
-  /**
-   * Whether to enable the sign-in with ESN Accounts through OAuth 2.0 (alongside the CAS login),
-   * together with the (not yet working) sign-in with Google button in the front-end.
-   */
-  esnAccountsOAuth?: boolean;
 }

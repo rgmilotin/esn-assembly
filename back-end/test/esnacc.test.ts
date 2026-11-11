@@ -8,13 +8,7 @@ import * as assert from 'node:assert/strict';
 import { URL, URLSearchParams } from 'url';
 import { verify } from 'jsonwebtoken';
 
-import {
-  ENDPOINT_AUTHORIZATION,
-  ENDPOINT_TOKEN,
-  ENDPOINT_USERINFO,
-  getCookiePath,
-  getRedirectUri
-} from '../src/esnacc/config';
+import { ENDPOINT_AUTHORIZATION, ENDPOINT_TOKEN, ENDPOINT_USERINFO } from '../src/esnacc/config';
 import { HttpClient, HttpRequest, HttpResponse } from '../src/esnacc/esnaccount';
 import {
   OAuthFlowError,
@@ -28,15 +22,14 @@ import {
   serializeOAuthCookie,
   timingSafeEqual
 } from '../src/esnacc/oauth';
-import { extractRoles } from '../src/esnacc/roles';
-import { MissingLegacyIdError, mapUserInfoToUser, toLegacyRole, toLegacyRoles } from '../src/esnacc/userMapping';
+import { MissingUsernameError, mapUserInfoToUser } from '../src/esnacc/userMapping';
 import { OAuthRequestCookie, UserInfo } from '../src/esnacc/types';
 import { ESNAccountsOAuthErrors } from '../src/models/esnaccOAuth.model';
 import { User, UserRoles } from '../src/models/user.model';
 
 const SECRET = 'test-platform-secret';
-const REDIRECT_URI = getRedirectUri('api.assembly.esn.hu', 'dev');
-const COOKIE_PATH = getCookiePath('dev');
+const REDIRECT_URI = 'https://api.assembly.esn.hu/dev/esnacc_oauth_callback';
+const COOKIE_PATH = '/dev/esnacc_oauth_callback';
 
 //
 // HELPERS
@@ -52,7 +45,8 @@ const fakeESNAccounts = (responses: { token?: HttpResponse; userinfo?: HttpRespo
       requests.push(request);
       if (request.url === ENDPOINT_TOKEN)
         return responses.token ?? json(200, { access_token: 'ACCESS_TOKEN', token_type: 'Bearer' });
-      if (request.url === ENDPOINT_USERINFO) return responses.userinfo ?? json(200, { sub: '1', legacy_sub: 'jdoe' });
+      if (request.url === ENDPOINT_USERINFO)
+        return responses.userinfo ?? json(200, { sub: '1', preferred_username: 'jdoe' });
       return { status: 404, body: 'Not found' };
     }
   };
@@ -89,17 +83,6 @@ const rejectsWith = async (promise: Promise<unknown>, code: ESNAccountsOAuthErro
 //
 // TESTS
 //
-
-describe('configuration', () => {
-  it('builds a fixed redirect URI per stage', () => {
-    assert.equal(REDIRECT_URI, 'https://api.assembly.esn.hu/dev/esnacc_oauth_callback');
-    assert.equal(
-      getRedirectUri('api.assembly.esn.hu/', 'prod'),
-      'https://api.assembly.esn.hu/prod/esnacc_oauth_callback'
-    );
-    assert.equal(COOKIE_PATH, '/dev/esnacc_oauth_callback');
-  });
-});
 
 describe('authorization request', () => {
   it('computes the PKCE challenge as base64url(SHA-256(verifier)) (RFC 7636, appendix B)', () => {
@@ -252,7 +235,7 @@ describe('callback', () => {
 
   it('requests userinfo with the bearer access token (spec test 7) and returns it, unknown claims included (spec test 13)', async () => {
     const { http, requests } = fakeESNAccounts({
-      userinfo: json(200, { sub: '1', legacy_sub: 'jdoe', future_claim: 42 })
+      userinfo: json(200, { sub: '1', preferred_username: 'jdoe', future_claim: 42 })
     });
     const userInfo = await callback({ code: 'CODE', state: 'STATE' }, http);
 
@@ -350,141 +333,99 @@ const USER_FROM_CAS_LOGIN = {
   avatarURL: 'https://example.org/avatars/jane.jpg'
 };
 
-describe('roles extraction', () => {
-  it('reads the list of scoped roles returned by ESN Accounts', () => {
-    assert.deepEqual(extractRoles({ groups: ['RO-TIMI-ESN:section-active_member', 'SEEP:member', 'no-scope'] }), [
-      { role: 'section-active_member', source: 'groups', group: 'RO-TIMI-ESN', scope: 'RO-TIMI-ESN' },
-      { role: 'member', source: 'groups', group: 'SEEP', scope: 'SEEP' },
-      { role: 'no-scope', source: 'groups' }
-    ]);
-  });
-
-  it('reads flat OAuth groups (spec test 8)', () => {
-    assert.deepEqual(
-      extractRoles({ groups: { '8': 'COMMITTEE:itcom-chair', '42': 'NATIONAL_ORGANISATION:president' } }),
-      [
-        { role: 'COMMITTEE:itcom-chair', source: 'groups', group: '8' },
-        { role: 'NATIONAL_ORGANISATION:president', source: 'groups', group: '42' }
-      ]
-    );
-  });
-
-  it('reads detailed groups, with roles as an array or a single object (spec tests 9 and 10)', () => {
-    const role = { role: 'COMMITTEE:itcom-chair', label: 'IT Committee Chair' };
-    const group = { label: 'IT Committee', type: 'committee', scope: 'international' };
-    const expected = [
-      { ...role, source: 'detailed_groups', group: 'IT Committee', type: 'committee', scope: 'international' }
-    ];
-    assert.deepEqual(extractRoles({ detailed_groups: [{ ...group, roles: [role] }] }), expected);
-    assert.deepEqual(extractRoles({ detailed_groups: [{ ...group, roles: role }] }), expected);
-  });
-
-  it('skips malformed entries and works without any role (spec test 11)', () => {
-    assert.deepEqual(extractRoles({}), []);
-    assert.deepEqual(
-      extractRoles({ groups: { '1': 7 as any }, detailed_groups: [null, { roles: [{ role: 1 }] } as any] }),
-      []
-    );
-  });
-});
-
 describe('user mapping', () => {
-  it('maps a real-shaped profile to the same user that the CAS login produced', () => {
-    assert.deepEqual(mapUserInfoToUser(REAL_SHAPED_USERINFO, extractRoles(REAL_SHAPED_USERINFO)), USER_FROM_CAS_LOGIN);
+  it('maps a real-shaped profile to the user that the CAS login produced, with the OAuth roles', () => {
+    const user = mapUserInfoToUser(REAL_SHAPED_USERINFO);
+    assert.deepEqual({ ...user, roles: USER_FROM_CAS_LOGIN.roles }, USER_FROM_CAS_LOGIN);
+    assert.deepEqual(user.roles, REAL_SHAPED_USERINFO.groups);
   });
 
-  it('refuses profiles without a legacy (CAS) username', () => {
-    assert.throws(() => mapUserInfoToUser({ sub: '123', preferred_username: 'jdoe' }, []), MissingLegacyIdError);
-    assert.throws(() => mapUserInfoToUser({ sub: '123', legacy_sub: '  ' }, []), MissingLegacyIdError);
-    assert.throws(() => mapUserInfoToUser({ sub: '123', legacy_sub: 42 as any }, []), /found: number/);
+  it('gives the user the same permissions as the CAS login', () => {
+    const oauthUser = new User(mapUserInfoToUser(REAL_SHAPED_USERINFO));
+    const casUser = new User(USER_FROM_CAS_LOGIN);
+    for (const role of Object.values(UserRoles))
+      assert.equal(User.isAllowedBasedOnRoles(oauthUser, [role]), User.isAllowedBasedOnRoles(casUser, [role]), role);
   });
 
-  it('uses the lower-cased CAS username as user ID, like the CAS login', () => {
-    assert.equal(mapUserInfoToUser({ legacy_sub: ' JDoe ' }, []).userId, 'jdoe');
-    assert.equal(mapUserInfoToUser({ sub_legacy: 'JDoe' }, []).userId, 'jdoe', "ESNscope's name for the claim");
+  it('uses the lower-cased username as user ID and refuses profiles without it', () => {
+    assert.equal(mapUserInfoToUser({ preferred_username: ' JDoe ' }).userId, 'jdoe');
+    assert.throws(() => mapUserInfoToUser({ sub: '123', legacy_sub: 'jdoe' }), MissingUsernameError);
+    assert.throws(() => mapUserInfoToUser({ sub: '123', preferred_username: '  ' }), MissingUsernameError);
   });
 
-  it('takes section, section code and country from the groups', () => {
-    const user = mapUserInfoToUser(
-      {
-        legacy_sub: 'jdoe',
-        detailed_groups: [
-          { label: 'Central European Platform', type: 'Regional Platforms', scope: 'CEP', roles: [] },
-          { label: 'ESN ELTE', type: 'section', scope: 'HU-BUDA-ELTE', roles: [] },
-          { label: 'ESN Timisoara', type: 'section', scope: 'RO-TIMI-ESN', roles: [] }
-        ]
-      },
-      []
-    );
-    assert.equal(user.sectionCode, 'HU-BUDA-ELTE', 'the first section');
+  it('takes section and section code from the first section', () => {
+    const user = mapUserInfoToUser({
+      preferred_username: 'jdoe',
+      detailed_groups: [
+        { label: 'Central European Platform', type: 'Regional Platforms', scope: 'CEP', roles: [] },
+        { label: 'ESN ELTE', type: 'section', scope: 'HU-BUDA-ELTE', roles: [] },
+        { label: 'ESN Timisoara', type: 'section', scope: 'RO-TIMI-ESN', roles: [] }
+      ]
+    });
+    assert.equal(user.sectionCode, 'HU-BUDA-ELTE');
     assert.equal(user.section, 'ESN ELTE');
-    assert.equal(user.country, 'ESN Hungary', 'from the section code');
-
-    const withCountryGroup = mapUserInfoToUser(
-      {
-        legacy_sub: 'jdoe',
-        detailed_groups: [
-          { label: 'ESN ELTE', type: 'section', scope: 'HU-BUDA-ELTE', roles: [] },
-          { label: 'ESN Hungary (NO)', type: 'country', scope: 'HU', roles: [] }
-        ]
-      },
-      []
-    );
-    assert.equal(withCountryGroup.country, 'ESN Hungary (NO)', "the country's group, when present");
+    assert.equal(user.country, 'ESN Hungary');
   });
 
   it("doesn't crash on missing optional claims and always has a first name (spec test 11)", () => {
-    const user = mapUserInfoToUser({ legacy_sub: 'jdoe', address: { country: 'Hungary' } }, []);
-    assert.equal(user.firstName, 'jdoe');
-    assert.equal(user.lastName, '');
-    assert.equal(user.email, null);
-    assert.equal(user.sectionCode, null);
-    assert.equal(user.section, null);
-    assert.equal(user.country, null, "the personal address' country is never used");
-    assert.deepEqual(mapUserInfoToUser({ legacy_sub: 'jdoe', name: 'Jane Mary Doe' }, []), {
+    const user = mapUserInfoToUser({ preferred_username: 'jdoe', address: { country: 'Hungary' } });
+    assert.deepEqual(user, {
+      userId: 'jdoe',
+      email: null,
+      firstName: 'jdoe',
+      lastName: '',
+      roles: [],
+      sectionCode: null,
+      section: null,
+      country: null,
+      avatarURL: null
+    });
+    assert.deepEqual(mapUserInfoToUser({ preferred_username: 'jdoe', name: 'Jane Mary Doe' }), {
       ...user,
       firstName: 'Jane',
       lastName: 'Mary Doe'
     });
-    assert.equal(mapUserInfoToUser({ legacy_sub: 'jdoe', email: 'jane@example.org' }, []).email, 'jane@example.org');
-  });
-
-  it('translates roles to the legacy (CAS) format', () => {
-    const fromGroups = (role: string): string => toLegacyRole({ role, source: 'groups' });
-    assert.equal(fromGroups('section-active_member'), 'Local.activeMember');
-    assert.equal(fromGroups('section-regular_board_member'), 'Local.regularBoardMember');
-    assert.equal(fromGroups('country-president'), 'National.president');
-    assert.equal(fromGroups('all'), null, 'generic membership of a section');
-    assert.equal(fromGroups('member'), null, 'membership of a regional platform');
-    assert.equal(fromGroups('NATIONAL_ORGANISATION:president'), 'National.president');
-    assert.equal(fromGroups('SECTION:regular-board-member'), 'Local.regularBoardMember');
-    assert.equal(fromGroups('COMMITTEE:itcom-chair'), 'International.itcomChair');
-    assert.equal(fromGroups('country-regular_board_member'), 'National.regularBoardMember');
-    assert.equal(fromGroups('Local.activeMember:HU-BUPE-OBU'), 'Local.activeMember');
-    assert.equal(fromGroups('International.ab.member'), 'International.ab.member');
-    assert.equal(fromGroups('UNKNOWN_GROUP:president'), null);
-    assert.equal(fromGroups('just-a-word'), null);
     assert.equal(
-      toLegacyRole({ role: 'GROUP:chair', source: 'detailed_groups', type: 'committee', scope: 'international' }),
-      'International.chair'
-    );
-    assert.deepEqual(
-      toLegacyRoles([
-        { role: 'SECTION:active-member', source: 'groups' },
-        { role: 'SECTION:active_member', source: 'groups' }
-      ]),
-      ['Local.activeMember']
+      mapUserInfoToUser({ preferred_username: 'jdoe', email: 'jane@example.org' }).email,
+      'jane@example.org'
     );
   });
+});
 
-  it("produces roles that the platform's role rules recognise", () => {
-    const userWith = (role: string): User =>
-      new User({ userId: 'jdoe', roles: toLegacyRoles([{ role, source: 'groups' }]) });
-    assert.ok(User.isAllowedBasedOnRoles(userWith('SECTION:regular-board-member'), [UserRoles.LOCAL_BOARD]));
-    assert.ok(
-      User.isAllowedBasedOnRoles(userWith('NATIONAL_ORGANISATION:regular_board_member'), [UserRoles.NATIONAL_BOARD])
-    );
-    assert.ok(User.isAllowedBasedOnRoles(userWith('NATIONAL_ORGANISATION:president'), [UserRoles.NATIONAL_LEVEL]));
-    assert.ok(!User.isAllowedBasedOnRoles(userWith('SECTION:active-member'), [UserRoles.LOCAL_BOARD]));
+describe('roles', () => {
+  const allowed = (role: string, userRole: UserRoles): boolean =>
+    User.isAllowedBasedOnRoles(new User({ userId: 'jdoe', roles: [role] }), [userRole]);
+
+  it('recognises the OAuth roles of the "ESN Accounts - roles mapping" sheet', () => {
+    assert.ok(allowed('HU-BUDA-ELTE:section-regular_board_member', UserRoles.LOCAL_BOARD));
+    assert.ok(allowed('HU-BUDA-ELTE:section-active_member', UserRoles.LOCAL_LEVEL));
+    assert.ok(!allowed('HU-BUDA-ELTE:section-active_member', UserRoles.LOCAL_BOARD));
+    assert.ok(allowed('HU:country-regular_board_member', UserRoles.NATIONAL_BOARD));
+    assert.ok(allowed('HU:country-president', UserRoles.NATIONAL_LEVEL));
+    assert.ok(!allowed('HU:country-president', UserRoles.NATIONAL_BOARD));
+    assert.ok(allowed('INT:international-vp_governance', UserRoles.INTERNATIONAL_BOARD));
+    assert.ok(allowed('INT:international-staff', UserRoles.INTERNATIONAL_SECRETARIAT));
+    assert.ok(allowed('BODY:ga-chair', UserRoles.INTERNATIONAL_GA_CT));
+    assert.ok(allowed('BODY:ab-main_arbitrator', UserRoles.INTERNATIONAL_AB));
+    assert.ok(allowed('BODY:ac', UserRoles.INTERNATIONAL_AC));
+    assert.ok(allowed('COMMITTEE:itcom-chair', UserRoles.INTERNATIONAL_LEVEL));
+    assert.ok(allowed('TEAM:eduk8-facilitator', UserRoles.INTERNATIONAL_LEVEL));
+  });
+
+  it("doesn't give permissions for generic memberships", () => {
+    for (const role of ['HU:all', 'CEP:member', 'PERMISSIONS:it-wiki_admin'])
+      assert.ok(
+        Object.values(UserRoles).every(userRole => !allowed(role, userRole)),
+        role
+      );
+  });
+
+  it('still recognises the CAS roles', () => {
+    assert.ok(allowed('Local.regularBoardMember', UserRoles.LOCAL_BOARD));
+    assert.ok(allowed('Local.activeMember', UserRoles.LOCAL_LEVEL));
+    assert.ok(allowed('National.president', UserRoles.NATIONAL_LEVEL));
+    assert.ok(!allowed('National.president', UserRoles.NATIONAL_BOARD));
+    assert.ok(allowed('International.AB.MainArbitrator', UserRoles.INTERNATIONAL_AB));
+    assert.ok(allowed('International.vpGovernance', UserRoles.INTERNATIONAL_BOARD));
   });
 });

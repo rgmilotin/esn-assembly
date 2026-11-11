@@ -37,10 +37,6 @@ export interface ResourceController {
   name: string;
   paths?: string[];
   isAuthFunction?: boolean;
-  /**
-   * Additional environment variables for the Resource Controller's Lambda function.
-   */
-  environment?: { [name: string]: string };
 }
 export interface DDBTable {
   PK: DDB.Attribute;
@@ -261,15 +257,8 @@ export class ApiStack extends cdk.Stack {
       lambdaFn.addEnvironment('STAGE', params.stage);
       lambdaFn.addEnvironment('RESOURCE', resource.name);
       lambdaFn.addEnvironment('APP_DOMAIN', params.appDomain);
-      Object.entries(resource.environment ?? {}).forEach(([name, value]) => lambdaFn.addEnvironment(name, value));
 
       lambdaFunctions[resource.name] = lambdaFn;
-    });
-
-    // remove the API paths that no Lambda function serves in this stage (i.e. features enabled only in some stages)
-    Object.keys(params.api.body.paths).forEach(path => {
-      const methods = Object.values(params.api.body.paths[path]) as any[];
-      if (!methods.some(method => method?.['x-amazon-apigateway-integration'])) delete params.api.body.paths[path];
     });
 
     return { lambdaFunctions };

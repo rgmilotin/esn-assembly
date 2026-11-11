@@ -71,7 +71,6 @@ paths:
       summary: Start the sign-in with ESN Accounts through OAuth 2.0
       description: |
         Redirect to the authorization endpoint of ESN Accounts (authorization code with PKCE).
-        Available only in the stages where `esnAccountsOAuth` is enabled.
       tags: [Login]
       parameters:
         - name: localhost
@@ -88,7 +87,6 @@ paths:
       description: |
         The redirect URI registered with ESN Accounts. It validates the flow, gets the user's profile and redirects to
         the front-end with a token to authenticate the user (or with an error code).
-        Available only in the stages where `esnAccountsOAuth` is enabled.
       tags: [Login]
       parameters:
         - name: code

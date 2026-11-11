@@ -90,7 +90,7 @@ echo -e "${C}Uploading...${NC}"
 
 # invalidate old common files from the CloudFront distribution
 echo -e "${C}Cleaning...${NC}"
-"${AWS_CLI}" cloudfront create-invalidation --profile ${AWS_PROFILE} --distribution-id ${DISTRIBUTION} \
+MSYS_NO_PATHCONV=1 "${AWS_CLI}" cloudfront create-invalidation --profile ${AWS_PROFILE} --distribution-id ${DISTRIBUTION} \
   --paths "/index.html" "/assets/i18n*" \
   1>/dev/null
 
