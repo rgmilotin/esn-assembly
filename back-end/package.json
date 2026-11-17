@@ -4,6 +4,7 @@
   "scripts": {
     "lint": "eslint --ext .ts",
     "compile": "tsc --build",
+    "test": "tsc -p tsconfig.test.json && node --test \".test-build/test/**/*.test.js\"",
     "deploy": "cdk deploy",
     "cdk": "cdk"
   },

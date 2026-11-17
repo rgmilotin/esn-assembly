@@ -40,4 +40,5 @@ back-end/cdk.context.json
 back-end/output-config.json
 back-end/src/**/*.js
 back-end/src/**/*.js.map
+back-end/.test-build
 front-end/.angular/cache
