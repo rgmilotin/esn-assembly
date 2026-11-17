@@ -1,12 +1,28 @@
 /**
- * PKCE, `state` and the flow's cookie (as in `src/oauth.ts` of ESN-Hungary/esnscope, with a signed cookie).
+ * PKCE, `state`, the flow's cookie and the callback's validation (as in `src/oauth.ts` of ESN-Hungary/esnscope, with
+ * a signed cookie).
  */
 
 import { createHash, createHmac, randomBytes } from 'crypto';
 import { URL } from 'url';
 
 import { OAUTH_COOKIE_MAX_AGE_SECONDS, OAUTH_COOKIE_NAME, SCOPE } from './config';
-import { OAuthRequestCookie } from './types';
+import { HttpClient, exchangeCodeForToken, getUserInfo } from './esnaccount';
+import { OAuthRequestCookie, UserInfo } from './types';
+import { ESNAccountsOAuthErrors } from '../models/esnaccOAuth.model';
+
+/**
+ * An error of the OAuth flow, with the code to report back to the front-end.
+ * Note: the message is only for the logs and never contains tokens or secrets.
+ */
+export class OAuthFlowError extends Error {
+  constructor(
+    public code: ESNAccountsOAuthErrors,
+    message: string
+  ) {
+    super(message);
+  }
+}
 
 //
 // AUTHORIZATION REQUEST
@@ -33,6 +49,70 @@ export const buildAuthorizationURL = (params: {
   authorizationURL.searchParams.set('code_challenge_method', 'S256');
 
   return authorizationURL.toString();
+};
+
+//
+// CALLBACK
+//
+
+/**
+ * Validate the callback and get the user's profile from ESN Accounts (same order as the spec's `handleCallback`):
+ * provider's error, authorization code, state (against the flow's cookie), token exchange, userinfo.
+ * The ESN Accounts' tokens are only used here and never returned nor logged.
+ */
+export const completeAuthorization = async (params: {
+  query: Record<string, string | undefined>;
+  oauthCookie: OAuthRequestCookie | null;
+  tokenEndpoint: string;
+  userinfoEndpoint: string;
+  clientId: string;
+  clientSecret: string;
+  redirectURI: string;
+  http?: HttpClient;
+}): Promise<UserInfo> => {
+  const query = params.query ?? {};
+  const { oauthCookie, http } = params;
+
+  if (query.error) {
+    const code =
+      query.error === 'access_denied' ? ESNAccountsOAuthErrors.ACCESS_DENIED : ESNAccountsOAuthErrors.INVALID_REQUEST;
+    throw new OAuthFlowError(
+      code,
+      `ESN Accounts returned an error: ${String(query.error)
+        .replace(/[^\w.-]/g, '')
+        .slice(0, 64)}`
+    );
+  }
+
+  const code = query.code;
+  if (!code) throw new OAuthFlowError(ESNAccountsOAuthErrors.INVALID_REQUEST, 'No authorization code was returned');
+
+  if (!oauthCookie || !query.state || !timingSafeEqual(query.state, oauthCookie.state))
+    throw new OAuthFlowError(ESNAccountsOAuthErrors.INVALID_STATE, 'The OAuth state could not be verified');
+
+  let accessToken: string;
+  try {
+    const tokenResponse = await exchangeCodeForToken({
+      tokenEndpoint: params.tokenEndpoint,
+      code,
+      clientId: params.clientId,
+      clientSecret: params.clientSecret,
+      codeVerifier: oauthCookie.codeVerifier,
+      redirectURI: params.redirectURI,
+      http
+    });
+    accessToken = typeof tokenResponse.access_token === 'string' ? tokenResponse.access_token : null;
+  } catch (error) {
+    throw new OAuthFlowError(ESNAccountsOAuthErrors.ESN_ACCOUNTS_ERROR, (error as Error).message);
+  }
+  if (!accessToken)
+    throw new OAuthFlowError(ESNAccountsOAuthErrors.ESN_ACCOUNTS_ERROR, 'The token endpoint returned no access token');
+
+  try {
+    return await getUserInfo({ userinfoEndpoint: params.userinfoEndpoint, accessToken, http });
+  } catch (error) {
+    throw new OAuthFlowError(ESNAccountsOAuthErrors.ESN_ACCOUNTS_ERROR, (error as Error).message);
+  }
 };
 
 //
