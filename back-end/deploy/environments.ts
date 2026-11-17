@@ -33,7 +33,8 @@ export const parameters: Parameters = {
   sesIdentityARN: 'arn:aws:ses:eu-central-1:167975317134:identity/noreply@assembly.esn.hu',
   sesNotificationTopicARN:
     'arn:aws:sns:eu-central-1:167975317134:esn-assembly-hu-ses-DomainIdentitySesNotificationTopic44F98B89-2VwjalQIQWVy',
-  dnsMode: DNS_MODE
+  dnsMode: DNS_MODE,
+  esnAccountsURL: 'https://accounts.esn.org'
 };
 
 export const stages: { [stage: string]: Stage } = {
@@ -77,6 +78,10 @@ export interface Parameters {
   sesIdentityARN?: string;
   sesNotificationTopicARN?: string;
   dnsMode: DnsMode;
+  /**
+   * The base URL of ESN Accounts, used by the OAuth 2.0 sign-in (endpoints are derived from it).
+   */
+  esnAccountsURL: string;
 }
 
 export type DnsMode = 'route53' | 'external';

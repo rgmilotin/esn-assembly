@@ -306,7 +306,8 @@ const createApp = async (): Promise<void> => {
     sesSourceAddress: SES_SOURCE_ADDRESS,
     removalPolicy: STAGE_VARIABLES.destroyDataOnDelete ? cdk.RemovalPolicy.DESTROY : cdk.RemovalPolicy.RETAIN,
     lambdaLogLevel: STAGE_VARIABLES.logLevel ?? 'INFO',
-    appDomain: STAGE === 'prod' && PROD_CUSTOM_DOMAIN ? PROD_CUSTOM_DOMAIN : STAGE_VARIABLES.domain
+    appDomain: STAGE === 'prod' && PROD_CUSTOM_DOMAIN ? PROD_CUSTOM_DOMAIN : STAGE_VARIABLES.domain,
+    esnAccountsURL: parameters.esnAccountsURL
   });
   apiStack.addDependency(mediaStack);
   apiStack.addDependency(apiDomainStack);

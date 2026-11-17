@@ -32,6 +32,7 @@ export interface ApiProps extends cdk.StackProps {
   removalPolicy: RemovalPolicy;
   lambdaLogLevel: 'TRACE' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'FATAL';
   appDomain: string;
+  esnAccountsURL: string;
 }
 export interface ResourceController {
   name: string;
@@ -84,7 +85,9 @@ export class ApiStack extends cdk.Stack {
       project: props.project,
       stage: props.stage,
       lambdaLogLevel: props.lambdaLogLevel,
-      appDomain: props.appDomain
+      appDomain: props.appDomain,
+      apiDomain: props.apiDomain,
+      esnAccountsURL: props.esnAccountsURL
     });
     const { lambdaFnWebSocket } = await this.createWebSocketAPIAndStage({
       stackId: id,
@@ -198,6 +201,8 @@ export class ApiStack extends cdk.Stack {
     api: cdk.aws_apigatewayv2.CfnApi;
     lambdaLogLevel: 'TRACE' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'FATAL';
     appDomain: string;
+    apiDomain: string;
+    esnAccountsURL: string;
   }): {
     lambdaFunctions: { [resourceName: string]: NodejsFunction };
   } {
@@ -257,6 +262,8 @@ export class ApiStack extends cdk.Stack {
       lambdaFn.addEnvironment('STAGE', params.stage);
       lambdaFn.addEnvironment('RESOURCE', resource.name);
       lambdaFn.addEnvironment('APP_DOMAIN', params.appDomain);
+      lambdaFn.addEnvironment('API_DOMAIN', params.apiDomain);
+      lambdaFn.addEnvironment('ESN_ACCOUNTS_URL', params.esnAccountsURL);
 
       lambdaFunctions[resource.name] = lambdaFn;
     });
