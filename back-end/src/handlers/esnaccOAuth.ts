@@ -26,6 +26,7 @@ import {
   serializeOAuthCookie
 } from '../esnacc/oauth';
 import { MissingUsernameError, mapUserInfoToUser } from '../esnacc/userMapping';
+import { ESNDirectory, createDirectoryLoader, resolveSectionAndCountry } from '../esnacc/directory';
 import { OAuthRequestCookie, UserInfo } from '../esnacc/types';
 
 import { User } from '../models/user.model';
@@ -55,6 +56,7 @@ const systemsManager = new SystemsManager();
 
 let JWT_SECRET: string;
 let CLIENT_CREDENTIALS: { clientId: string; clientSecret: string };
+let DIRECTORY_LOADER: { load: () => Promise<ESNDirectory | null> };
 
 export const handler = (ev: any, _: any, cb: any): Promise<void> => new ESNAccountsOAuth(ev, cb).handleRequest();
 
@@ -120,6 +122,8 @@ class ESNAccountsOAuth extends ResourceController {
 
     try {
       const endpoints = getESNAccountsEndpoints(ESN_ACCOUNTS_URL);
+      // the directory of sections and countries is loaded in parallel with the flow (it never fails nor blocks)
+      const directoryPromise = this.getDirectoryLoader(endpoints).load();
       const secret = await getJwtSecretFromSystemsManager();
       oauthCookie = parseOAuthCookie(getRequestCookies(this.event), secret);
       const { clientId, clientSecret } = await getClientCredentials();
@@ -136,7 +140,7 @@ class ESNAccountsOAuth extends ResourceController {
       // logged before mapping (DEBUG: only on dev), so that it's there also if the mapping fails; never tokens
       this.logger.debug('ESN Accounts OAuth userinfo received', { claims: describeClaims(userInfo) });
 
-      const userData = mapUserInfoToUser(userInfo);
+      const userData = resolveSectionAndCountry(mapUserInfoToUser(userInfo), await directoryPromise);
       const { userId, roles, sectionCode, section, country } = userData;
       this.logger.debug('ESN Accounts OAuth userinfo mapped', { userId, roles, sectionCode, section, country });
 
@@ -163,6 +167,21 @@ class ESNAccountsOAuth extends ResourceController {
 
       this.redirect(getAuthPageURL(oauthCookie?.localhostPort, { error: errorCode }), [expiredCookie]);
     }
+  }
+
+  /**
+   * The loader of ESN Accounts' directory of sections and countries, cached for the Lambda's lifetime.
+   */
+  private getDirectoryLoader(endpoints: { sections: string; countries: string }): {
+    load: () => Promise<ESNDirectory | null>;
+  } {
+    if (!DIRECTORY_LOADER)
+      DIRECTORY_LOADER = createDirectoryLoader({
+        sectionsEndpoint: endpoints.sections,
+        countriesEndpoint: endpoints.countries,
+        onError: err => this.logger.warn('ESN Accounts directory unavailable', err)
+      });
+    return DIRECTORY_LOADER;
   }
 
   /**
