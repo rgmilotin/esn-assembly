@@ -74,6 +74,10 @@ The suggested IDE is [Visual Studio Code](https://code.visualstudio.com/); we in
    ```
    aws ssm put-parameter --profile {AWS_PROFILE} --type "SecureString" --name "/{PROJECT}/auth" --value "{VALUE}"
    ```
+1. Set up the sign-in with ESN Accounts through OAuth 2.0 (available next to the CAS one): register an OAuth client with ESN Accounts, with the redirect URI `https://api.{DOMAIN}/{STAGE}/esnacc_oauth_callback` for each stage, and store its credentials in a second secure parameter. [Read more in the OAuth doc](/OAUTH.md).
+   ```
+   aws ssm put-parameter --profile {AWS_PROFILE} --type "SecureString" --name "/{PROJECT}/esnacc-oauth" --value '{"clientId":"{CLIENT_ID}","clientSecret":"{CLIENT_SECRET}"}'
+   ```
 1. You can create as many enviroments (stages) as you like; a common (the default) configuration includes _prod_ and _dev_ stages. **Repeat this step for each of the desired stages**. From the terminal, make sure to be in the `/back-end` folder of the project, substitute the `{STAGE}` variable (based on the stage/environment you want to deploy) and run:
    ```sh
    cdk deploy --profile {AWS_PROFILE} --context stage={STAGE} --all --require-approval never

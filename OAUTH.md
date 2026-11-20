@@ -42,12 +42,12 @@ countries directory), `back-end/src/handlers/esnaccOAuth.ts` (the Lambda functio
 in the code and none is read from the request's headers (the spec warns against trusting forwarded hosts, and the
 redirect URI must be byte-for-byte the registered one):
 
-| URL                       | Built from                                                         | Dev value                                               |
-| ------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------- |
-| ESN Accounts' endpoints   | `parameters.esnAccountsURL` (Lambda env. `ESN_ACCOUNTS_URL`)       | `https://accounts.esn.org/oauth/...`, `/api/v2/...`     |
-| Redirect URI              | `https://${parameters.apiDomain}/${stage}/esnacc_oauth_callback`   | `https://api.assembly.esn.hu/dev/esnacc_oauth_callback` |
-| Front-end return URL      | `https://${APP_DOMAIN}/auth` (stage domain, or prod custom domain) | `https://dev.assembly.esn.hu/auth`                      |
-| Start of the flow         | front-end: `https://${parameters.apiDomain}/${stage}/...authorize` | `https://api.assembly.esn.hu/dev/esnacc_oauth_authorize` |
+| URL                     | Built from                                                         | Dev value                                                |
+| ----------------------- | ------------------------------------------------------------------ | -------------------------------------------------------- |
+| ESN Accounts' endpoints | `parameters.esnAccountsURL` (Lambda env. `ESN_ACCOUNTS_URL`)       | `https://accounts.esn.org/oauth/...`, `/api/v2/...`      |
+| Redirect URI            | `https://${parameters.apiDomain}/${stage}/esnacc_oauth_callback`   | `https://api.assembly.esn.hu/dev/esnacc_oauth_callback`  |
+| Front-end return URL    | `https://${APP_DOMAIN}/auth` (stage domain, or prod custom domain) | `https://dev.assembly.esn.hu/auth`                       |
+| Start of the flow       | front-end: `https://${parameters.apiDomain}/${stage}/...authorize` | `https://api.assembly.esn.hu/dev/esnacc_oauth_authorize` |
 
 Why: since the external DNS switch, `main` builds every domain from `environments.ts` (`DOMAIN`, `api.`/`dev.` +
 `DOMAIN`), and `DNS_MODE` (`external` or `route53`) changes who manages the DNS records, not the names. So moving to
@@ -61,17 +61,17 @@ Local development: with `?localhost=<port>` (added by the front-end when served 
 
 The OAuth user has the same shape as the CAS one, so the platform works the same way for both.
 
-| User field              | From the userinfo                                                                                     |
-| ----------------------- | ----------------------------------------------------------------------------------------------------- |
-| `userId`                | `preferred_username`, trimmed and lower-cased, as the CAS login does with the CAS username            |
-| `email`                 | `esn_email` (as the CAS login), else `email`                                                          |
-| `firstName`, `lastName` | `given_name`, `family_name` (else `name` split; the first name falls back to `nickname`, then userId) |
-| `avatarURL`             | `picture`                                                                                             |
-| `roles`                 | `groups` as returned (`<scope>:<role>`, e.g. `HU-BUPE-ELT:section-active_member`); array or object    |
-| `sectionCode`           | the first section role (`<SECTION-CODE>:section-*`), else the first `detailed_groups` of type section |
-| `section`               | the section's `label` in `/api/v2/sections` (e.g. "ESN ELTE"), else the `detailed_groups` label       |
+| User field              | From the userinfo                                                                                                                                                                                   |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `userId`                | `preferred_username`, trimmed and lower-cased, as the CAS login does with the CAS username                                                                                                          |
+| `email`                 | `esn_email` (as the CAS login), else `email`                                                                                                                                                        |
+| `firstName`, `lastName` | `given_name`, `family_name` (else `name` split; the first name falls back to `nickname`, then userId)                                                                                               |
+| `avatarURL`             | `picture`                                                                                                                                                                                           |
+| `roles`                 | `groups` as returned (`<scope>:<role>`, e.g. `HU-BUPE-ELT:section-active_member`); array or object                                                                                                  |
+| `sectionCode`           | the first section role (`<SECTION-CODE>:section-*`), else the first `detailed_groups` of type section                                                                                               |
+| `section`               | the section's `label` in `/api/v2/sections` (e.g. "ESN ELTE"), else the `detailed_groups` label                                                                                                     |
 | `country`               | the `label` in `/api/v2/countries` (e.g. "ESN Hungary") of the section's country or, without a section, of the first `<CC>:country-*` (then `<CC>:all`) role; empty if the directory is unavailable |
-| `isAdministrator`, ...  | the platform's configurations, as for the CAS login (the first user ever becomes administrator)       |
+| `isAdministrator`, ...  | the platform's configurations, as for the CAS login (the first user ever becomes administrator)                                                                                                     |
 
 **The user ID is `preferred_username`**, so the same person gets the same account with CAS and OAuth. `sub` and the
 legacy identifiers (`sub_legacy`, `legacy_sub`) are never used. The sign-in is refused (`no_username`) if
@@ -93,18 +93,18 @@ following the official
 sheet, which pairs each OAuth role with its CAS role. See `ESN_ACCOUNTS_ROLES_MAP` in
 `back-end/src/models/user.model.ts`; matching is case-insensitive and `*` stands for any text.
 
-| Platform role               | CAS roles                                                            | OAuth roles                                                                          |
-| --------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `INTERNATIONAL_BOARD`       | `International.{president, vicePresident, treasurer, ...}`           | `INT:international-{board, president, vp_governance, vp_development, treasurer, communication, wpa}` |
-| `INTERNATIONAL_SECRETARIAT` | `International.officeStaff`                                          | `INT:international-staff`                                                            |
-| `INTERNATIONAL_GA_CT`       | `International.{agmchair, CNRadmin, CNRsecretary}`                   | `BODY:ga-{chair, administrator, secretary}`                                          |
-| `INTERNATIONAL_AB`          | `International.AB.*`                                                 | `BODY:ab`, `BODY:ab-*`                                                               |
-| `INTERNATIONAL_AC`          | `International.AC.*`                                                 | `BODY:ac`, `BODY:ac-*`                                                               |
-| `INTERNATIONAL_LEVEL`       | `International.*`                                                    | `INT:*`, `BODY:*`, `COMMITTEE:*`, `COMMITEE:*` (both spellings are in the sheet), `TEAM:*` |
-| `NATIONAL_BOARD`            | `National.regularBoardMember`                                        | `<COUNTRY-CODE>:country-regular_board_member`                                        |
-| `NATIONAL_LEVEL`            | `National.*`                                                         | `<COUNTRY-CODE>:country-*`                                                           |
-| `LOCAL_BOARD`               | `Local.regularBoardMember`                                           | `<SECTION-CODE>:section-regular_board_member`                                        |
-| `LOCAL_LEVEL`               | `Local.*`                                                            | `<SECTION-CODE>:section-*`                                                           |
+| Platform role               | CAS roles                                                  | OAuth roles                                                                                          |
+| --------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `INTERNATIONAL_BOARD`       | `International.{president, vicePresident, treasurer, ...}` | `INT:international-{board, president, vp_governance, vp_development, treasurer, communication, wpa}` |
+| `INTERNATIONAL_SECRETARIAT` | `International.officeStaff`                                | `INT:international-staff`                                                                            |
+| `INTERNATIONAL_GA_CT`       | `International.{agmchair, CNRadmin, CNRsecretary}`         | `BODY:ga-{chair, administrator, secretary}`                                                          |
+| `INTERNATIONAL_AB`          | `International.AB.*`                                       | `BODY:ab`, `BODY:ab-*`                                                                               |
+| `INTERNATIONAL_AC`          | `International.AC.*`                                       | `BODY:ac`, `BODY:ac-*`                                                                               |
+| `INTERNATIONAL_LEVEL`       | `International.*`                                          | `INT:*`, `BODY:*`, `COMMITTEE:*`, `COMMITEE:*` (both spellings are in the sheet), `TEAM:*`           |
+| `NATIONAL_BOARD`            | `National.regularBoardMember`                              | `<COUNTRY-CODE>:country-regular_board_member`                                                        |
+| `NATIONAL_LEVEL`            | `National.*`                                               | `<COUNTRY-CODE>:country-*`                                                                           |
+| `LOCAL_BOARD`               | `Local.regularBoardMember`                                 | `<SECTION-CODE>:section-regular_board_member`                                                        |
+| `LOCAL_LEVEL`               | `Local.*`                                                  | `<SECTION-CODE>:section-*`                                                                           |
 
 Generic memberships (`<COUNTRY-CODE>:all`, `<SECTION-CODE>:all`, `<RP>:member`, e.g. `CEP:member`) and the tools'
 permissions (`PERMISSIONS:*`) grant no platform role, as their CAS counterparts didn't. The "regular board member"
@@ -112,11 +112,11 @@ role is, according to the sheet, assigned to all the board members of a section/
 
 ## Session length
 
-| What                                  | Lifetime    | Where                                                       |
-| ------------------------------------- | ----------- | ----------------------------------------------------------- |
-| Platform JWT of **OAuth** sign-ins    | **7 days**  | `OAUTH_JWT_EXPIRE_TIME` in `back-end/src/esnacc/config.ts`  |
-| Platform JWT of CAS sign-ins          | 1 day       | `JWT_EXPIRE_TIME` in `back-end/src/handlers/login.ts`       |
-| Flow cookie `esnacc_oauth`            | 10 minutes  | `OAUTH_COOKIE_MAX_AGE_SECONDS` in `back-end/src/esnacc/config.ts` |
+| What                               | Lifetime   | Where                                                             |
+| ---------------------------------- | ---------- | ----------------------------------------------------------------- |
+| Platform JWT of **OAuth** sign-ins | **7 days** | `OAUTH_JWT_EXPIRE_TIME` in `back-end/src/esnacc/config.ts`        |
+| Platform JWT of CAS sign-ins       | 1 day      | `JWT_EXPIRE_TIME` in `back-end/src/handlers/login.ts`             |
+| Flow cookie `esnacc_oauth`         | 10 minutes | `OAUTH_COOKIE_MAX_AGE_SECONDS` in `back-end/src/esnacc/config.ts` |
 
 The session is the JWT, not a cookie: the front-end stores it with its expiry (`tokenExpiresAt`, from the JWT's `exp`)
 and asks for a new sign-in after it (`front-end/src/app/auth.guard.ts`); the API's authorizer rejects expired tokens.
@@ -130,14 +130,14 @@ by the callback.
 On failure, the user is sent back to the sign-in page (`/auth?error=<code>`), where a translated message is shown
 (`AUTH.OAUTH_ERRORS.*` in `front-end/src/assets/i18n/en.json`).
 
-| Code              | Meaning                                                                                    |
-| ----------------- | ------------------------------------------------------------------------------------------ |
-| `access_denied`   | The user cancelled or denied the access on ESN Accounts                                    |
-| `invalid_request` | ESN Accounts returned another error, or no authorization code                              |
-| `invalid_state`   | The flow's cookie is missing, expired (10 minutes) or tampered with, or `state` differs    |
-| `esnacc_error`    | The token or userinfo endpoint of ESN Accounts failed (error, timeout, invalid answer)     |
-| `no_username`     | The profile has no valid `preferred_username`                                              |
-| `generic`         | Anything else (e.g. the client's credentials are missing in AWS SSM)                       |
+| Code              | Meaning                                                                                 |
+| ----------------- | --------------------------------------------------------------------------------------- |
+| `access_denied`   | The user cancelled or denied the access on ESN Accounts                                 |
+| `invalid_request` | ESN Accounts returned another error, or no authorization code                           |
+| `invalid_state`   | The flow's cookie is missing, expired (10 minutes) or tampered with, or `state` differs |
+| `esnacc_error`    | The token or userinfo endpoint of ESN Accounts failed (error, timeout, invalid answer)  |
+| `no_username`     | The profile has no valid `preferred_username`                                           |
+| `generic`         | Anything else (e.g. the client's credentials are missing in AWS SSM)                    |
 
 ## Logs
 
