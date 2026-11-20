@@ -19,9 +19,16 @@ export enum UserRoles {
 }
 
 /**
- * The map between the platform's roles with the (known) interesting roles on ESN Accounts.
- * Roles that ends with "*" are intended to be: "any role with that prefix".
- * Note: all roles are lower-cased (since they will be handled with a case-insensitive logic).
+ * The map between the platform's roles with the (known) interesting roles on ESN Accounts, in both the formats of
+ * the CAS login (e.g. `local.regularboardmember`) and of the OAuth 2.0 login (`<scope>:<role>`, e.g.
+ * `hu-bupe-elt:section-regular_board_member`). The OAuth roles follow the official "ESN Accounts - roles mapping"
+ * sheet, which pairs each OAuth role with its CAS role (see `OAUTH.md` for the link and the table).
+ * "*" stands for any text (e.g. `*:section-*`: any section role, of any section).
+ * Notes:
+ *  - all roles are lower-cased (since they will be handled with a case-insensitive logic);
+ *  - generic memberships (`<COUNTRY-CODE>:all`, `<SECTION-CODE>:all`, `<RP>:member`) and the tools' permissions
+ *    (`PERMISSIONS:*`) don't grant any platform role, as their CAS counterparts didn't;
+ *  - the sheet spells the committees' scope both as `COMMITTEE` and `COMMITEE`.
  */
 export const ESN_ACCOUNTS_ROLES_MAP: { [userRole: string]: string[] } = {
   INTERNATIONAL_BOARD: [
@@ -29,18 +36,44 @@ export const ESN_ACCOUNTS_ROLES_MAP: { [userRole: string]: string[] } = {
     'international.vicepresident',
     'international.treasurer',
     'international.webprojectadministrator',
-    'international.externalrelations'
+    'international.externalrelations',
+    'int:international-board',
+    'int:international-president',
+    'int:international-vp_governance',
+    'int:international-vp_development',
+    'int:international-treasurer',
+    'int:international-communication',
+    'int:international-wpa'
   ],
-  INTERNATIONAL_SECRETARIAT: ['international.officestaff'],
-  INTERNATIONAL_GA_CT: ['international.cnrsecretary', 'international.agmchair', 'international.cnradmin'],
-  INTERNATIONAL_AB: ['international.ab.*'],
-  INTERNATIONAL_AC: ['international.ac.*'],
-  INTERNATIONAL_LEVEL: ['international.*'],
-  NATIONAL_BOARD: ['national.regularboardmember'],
-  NATIONAL_LEVEL: ['national.*'],
-  LOCAL_BOARD: ['local.regularboardmember'],
-  LOCAL_LEVEL: ['local.*']
+  INTERNATIONAL_SECRETARIAT: ['international.officestaff', 'int:international-staff'],
+  INTERNATIONAL_GA_CT: [
+    'international.cnrsecretary',
+    'international.agmchair',
+    'international.cnradmin',
+    'body:ga-chair',
+    'body:ga-administrator',
+    'body:ga-secretary'
+  ],
+  INTERNATIONAL_AB: ['international.ab.*', 'body:ab', 'body:ab-*'],
+  INTERNATIONAL_AC: ['international.ac.*', 'body:ac', 'body:ac-*'],
+  INTERNATIONAL_LEVEL: ['international.*', 'int:*', 'body:*', 'committee:*', 'commitee:*', 'team:*'],
+  NATIONAL_BOARD: ['national.regularboardmember', '*:country-regular_board_member'],
+  NATIONAL_LEVEL: ['national.*', '*:country-*'],
+  LOCAL_BOARD: ['local.regularboardmember', '*:section-regular_board_member'],
+  LOCAL_LEVEL: ['local.*', '*:section-*']
 };
+
+/**
+ * Whether a (lower-cased) ESN Accounts role matches a pattern of `ESN_ACCOUNTS_ROLES_MAP` ("*": any text).
+ */
+export const matchesESNAccountsRole = (role: string, pattern: string): boolean => {
+  if (!ROLE_PATTERNS_CACHE.has(pattern)) {
+    const escaped = pattern.split('*').map(part => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&'));
+    ROLE_PATTERNS_CACHE.set(pattern, new RegExp(`^${escaped.join('.*')}$`));
+  }
+  return ROLE_PATTERNS_CACHE.get(pattern).test(role);
+};
+const ROLE_PATTERNS_CACHE = new Map<string, RegExp>();
 
 export class User extends Resource {
   /**
@@ -104,13 +137,7 @@ export class User extends Resource {
 
     return user.roles
       .map(userRole => userRole.toLowerCase())
-      .some(userRole =>
-        allowedESNAccountsRoles.some(allowedRole =>
-          allowedRole.endsWith('*')
-            ? userRole.startsWith(allowedRole.slice(0, allowedRole.length - 1))
-            : allowedRole === userRole
-        )
-      );
+      .some(userRole => allowedESNAccountsRoles.some(allowedRole => matchesESNAccountsRole(userRole, allowedRole)));
   };
 
   load(x: any): void {
