@@ -66,6 +66,48 @@ paths:
       responses:
         200:
           $ref: '#/components/responses/OperationCompleted'
+  /esnacc_oauth_authorize:
+    get:
+      summary: Start the sign-in with ESN Accounts through OAuth 2.0
+      description: |
+        Redirect to the authorization endpoint of ESN Accounts (authorization code with PKCE), setting a short-lived
+        signed cookie with the flow's state and PKCE verifier.
+      tags: [Login]
+      parameters:
+        - name: localhost
+          in: query
+          description: (dev stage only) The port of a local front-end to redirect to at the end of the flow
+          schema:
+            type: number
+      responses:
+        302:
+          description: Redirect to ESN Accounts (or to the front-end's sign-in page, with an error code)
+  /esnacc_oauth_callback:
+    get:
+      summary: Complete the sign-in with ESN Accounts through OAuth 2.0
+      description: |
+        The redirect URI registered with ESN Accounts. It validates the flow, gets the user's profile and redirects to
+        the front-end's sign-in page with a token to authenticate the user (or with an error code).
+      tags: [Login]
+      parameters:
+        - name: code
+          in: query
+          description: The authorization code returned by ESN Accounts
+          schema:
+            type: string
+        - name: state
+          in: query
+          description: The state of the flow, to match with the one in the flow's cookie
+          schema:
+            type: string
+        - name: error
+          in: query
+          description: The error returned by ESN Accounts, if any
+          schema:
+            type: string
+      responses:
+        302:
+          description: Redirect to the front-end's sign-in page, with a token or an error code
   /configurations:
     get:
       summary: Get the platform's configurations

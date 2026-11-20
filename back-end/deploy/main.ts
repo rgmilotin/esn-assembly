@@ -18,6 +18,7 @@ import { parameters, stages, Stage, PROD_CUSTOM_DOMAIN, SES_SOURCE_ADDRESS } fro
 const apiResources: ResourceController[] = [
   { name: 'auth', isAuthFunction: true },
   { name: 'login', paths: ['/login'] },
+  { name: 'esnaccOAuth', paths: ['/esnacc_oauth_authorize', '/esnacc_oauth_callback'] },
   { name: 'configurations', paths: ['/configurations'] },
   { name: 'media', paths: ['/media'] },
   { name: 'categories', paths: ['/categories', '/categories/{categoryId}'] },
