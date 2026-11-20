@@ -3,6 +3,8 @@ import { IDEAMessageService, IDEAStorageService } from '@idea-ionic/common';
 
 import { AppService } from '../app.service';
 
+import { ESNAccountsOAuthErrors } from '@models/esnaccOAuth.model';
+
 import { environment as env } from '@env';
 
 @Component({
@@ -12,6 +14,10 @@ import { environment as env } from '@env';
 })
 export class AuthPage implements OnInit {
   @Input() token: string;
+  /**
+   * The error code of a failed sign-in with ESN Accounts through OAuth 2.0 (see `ESNAccountsOAuthErrors`).
+   */
+  @Input() error: string;
 
   version = env.idea.app.version;
 
@@ -31,6 +37,10 @@ export class AuthPage implements OnInit {
         await this.storage.set('user', user);
       }
       window.location.assign('');
+    } else if (this.error) {
+      // remove the error from the URL, so that the message isn't shown again on reload
+      window.history.replaceState(null, '', window.location.pathname);
+      await this.message.error(getOAuthErrorMessageKey(this.error));
     }
   }
 
@@ -57,6 +67,16 @@ export class AuthPage implements OnInit {
     await this.message.info('AUTH.GOOGLE_COMING_SOON');
   }
 }
+
+/**
+ * The (translation key of the) message for an error code of the OAuth sign-in; unknown codes get the generic one.
+ */
+const getOAuthErrorMessageKey = (errorCode: string): string => {
+  const errorKey = Object.keys(ESNAccountsOAuthErrors).find(
+    key => ESNAccountsOAuthErrors[key as keyof typeof ESNAccountsOAuthErrors] === errorCode
+  );
+  return `AUTH.OAUTH_ERRORS.${errorKey ?? 'GENERIC'}`;
+};
 
 /**
  * Parse a JWT token without using external libraries.
