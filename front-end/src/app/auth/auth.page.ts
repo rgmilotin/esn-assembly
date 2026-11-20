@@ -35,6 +35,16 @@ export class AuthPage implements OnInit {
     const localhost = location.hostname.startsWith('localhost') ? '?localhost=8100' : '';
     window.location.assign(`https://accounts.esn.org/cas/login?service=${apiLoginURL}${localhost}`);
   }
+
+  /**
+   * Start the sign-in with ESN Accounts through OAuth 2.0: the API redirects to ESN Accounts and, at the end of the
+   * flow, back to this page with a token (or an error code). The API's URL comes from the stage's configuration.
+   */
+  startLoginFlowWithESNAccountsOAuth(): void {
+    const apiAuthorizeURL = `https://${env.idea.api.url}/${env.idea.api.stage}/esnacc_oauth_authorize`;
+    const localhost = location.hostname.startsWith('localhost') ? `?localhost=${location.port || 8100}` : '';
+    window.location.assign(`${apiAuthorizeURL}${localhost}`);
+  }
 }
 
 /**

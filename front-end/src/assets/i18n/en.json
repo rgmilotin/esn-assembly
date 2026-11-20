@@ -88,7 +88,8 @@
     "EN": "English"
   },
   "AUTH": {
-    "LOGIN_WITH_ESN_ACCOUNTS": "Sign in with ESN Accounts"
+    "LOGIN_WITH_ESN_ACCOUNTS": "Sign in with ESN Accounts",
+    "LOGIN_WITH_ESN_ACCOUNTS_OAUTH": "Sign in with ESN Accounts (OAuth)"
   },
   "TABS": {
     "DASHBOARD": "Dashboard",
