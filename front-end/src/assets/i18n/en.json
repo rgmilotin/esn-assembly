@@ -89,7 +89,9 @@
   },
   "AUTH": {
     "LOGIN_WITH_ESN_ACCOUNTS": "Sign in with ESN Accounts",
-    "LOGIN_WITH_ESN_ACCOUNTS_OAUTH": "Sign in with ESN Accounts (OAuth)"
+    "LOGIN_WITH_ESN_ACCOUNTS_OAUTH": "Sign in with ESN Accounts (OAuth)",
+    "LOGIN_WITH_GOOGLE": "Sign in with Google",
+    "GOOGLE_COMING_SOON": "Function coming soon!"
   },
   "TABS": {
     "DASHBOARD": "Dashboard",

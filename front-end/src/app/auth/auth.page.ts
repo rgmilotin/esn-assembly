@@ -1,5 +1,5 @@
 import { Component, Input, OnInit } from '@angular/core';
-import { IDEAStorageService } from '@idea-ionic/common';
+import { IDEAMessageService, IDEAStorageService } from '@idea-ionic/common';
 
 import { AppService } from '../app.service';
 
@@ -15,7 +15,11 @@ export class AuthPage implements OnInit {
 
   version = env.idea.app.version;
 
-  constructor(private storage: IDEAStorageService, public app: AppService) {}
+  constructor(
+    private storage: IDEAStorageService,
+    private message: IDEAMessageService,
+    public app: AppService
+  ) {}
   async ngOnInit(): Promise<void> {
     // complete the flow from ESN Accounts
     if (this.token) {
@@ -44,6 +48,13 @@ export class AuthPage implements OnInit {
     const apiAuthorizeURL = `https://${env.idea.api.url}/${env.idea.api.stage}/esnacc_oauth_authorize`;
     const localhost = location.hostname.startsWith('localhost') ? `?localhost=${location.port || 8100}` : '';
     window.location.assign(`${apiAuthorizeURL}${localhost}`);
+  }
+
+  /**
+   * The sign-in with Google isn't available yet: there's no back-end for it, only a message.
+   */
+  async startLoginFlowWithGoogle(): Promise<void> {
+    await this.message.info('AUTH.GOOGLE_COMING_SOON');
   }
 }
 

@@ -18,6 +18,10 @@
             <ion-icon slot="start" icon="/assets/icons/star-white.svg"></ion-icon>
             {{ 'AUTH.LOGIN_WITH_ESN_ACCOUNTS_OAUTH' | translate }}
           </ion-button>
+          <ion-button fill="outline" color="medium" (click)="startLoginFlowWithGoogle()">
+            <ion-icon slot="start" name="logo-google"></ion-icon>
+            {{ 'AUTH.LOGIN_WITH_GOOGLE' | translate }}
+          </ion-button>
         </div>
         <p class="version">v{{ version }}</p>
       </ion-card-content>
