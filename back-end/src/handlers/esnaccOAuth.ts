@@ -8,6 +8,7 @@ import { DynamoDB, HandledError, ResourceController, SystemsManager } from 'idea
 import {
   AUTHORIZE_PATH,
   CALLBACK_PATH,
+  OAUTH_JWT_EXPIRE_TIME,
   getClientCredentialsParameterName,
   getESNAccountsEndpoints,
   getRedirectURI,
@@ -42,11 +43,6 @@ const STAGE = process.env.STAGE;
 const APP_DOMAIN = process.env.APP_DOMAIN;
 const API_DOMAIN = process.env.API_DOMAIN;
 const ESN_ACCOUNTS_URL = process.env.ESN_ACCOUNTS_URL;
-
-/**
- * The lifetime of the platform's JWT for the users who sign in through OAuth.
- */
-const JWT_EXPIRE_TIME = '1 day';
 
 const DDB_TABLES = { configurations: process.env.DDB_TABLE_configurations };
 const ddb = new DynamoDB();
@@ -156,7 +152,7 @@ class ESNAccountsOAuth extends ResourceController {
       this.logger.info('ESN Accounts OAuth login', { userId: user.userId });
 
       const userJWTData = JSON.parse(JSON.stringify(user));
-      const token = sign(userJWTData, secret, { expiresIn: JWT_EXPIRE_TIME });
+      const token = sign(userJWTData, secret, { expiresIn: OAUTH_JWT_EXPIRE_TIME });
 
       this.redirect(getAuthPageURL(oauthCookie.localhostPort, { token }), [expiredCookie]);
     } catch (err) {

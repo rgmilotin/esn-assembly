@@ -9,7 +9,14 @@ import * as assert from 'node:assert/strict';
 import { URL } from 'url';
 import { sign, verify } from 'jsonwebtoken';
 
-import { CALLBACK_PATH, OAUTH_COOKIE_NAME, getESNAccountsEndpoints, getRedirectURI } from '../src/esnacc/config';
+import {
+  CALLBACK_PATH,
+  OAUTH_COOKIE_MAX_AGE_SECONDS,
+  OAUTH_COOKIE_NAME,
+  OAUTH_JWT_EXPIRE_TIME,
+  getESNAccountsEndpoints,
+  getRedirectURI
+} from '../src/esnacc/config';
 import {
   buildAuthorizationURL,
   createCodeChallenge,
@@ -46,6 +53,16 @@ describe('configuration', () => {
     assert.throws(() => getESNAccountsEndpoints(undefined));
     assert.throws(() => getRedirectURI(undefined, 'dev'));
     assert.throws(() => getRedirectURI('api.assembly.esn.hu', undefined));
+  });
+});
+
+describe('session length', () => {
+  it('the JWT of OAuth sign-ins lasts 7 days (within the required 4-7)', () => {
+    const { iat, exp } = verify(sign({ userId: 'jdoe' }, SECRET, { expiresIn: OAUTH_JWT_EXPIRE_TIME }), SECRET) as any;
+    assert.equal(exp - iat, 7 * 24 * 60 * 60);
+  });
+  it("is unrelated to the flow's cookie, which lasts 10 minutes", () => {
+    assert.equal(OAUTH_COOKIE_MAX_AGE_SECONDS, 600);
   });
 });
 

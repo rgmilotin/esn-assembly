@@ -21,6 +21,15 @@ export const AUTHORIZE_PATH = '/esnacc_oauth_authorize';
 export const CALLBACK_PATH = '/esnacc_oauth_callback';
 
 /**
+ * The session length of the users who sign in through OAuth: the lifetime (`exp`) of the platform's JWT signed at the
+ * end of the flow (the CAS login keeps its own, shorter, lifetime). The front-end stores the token with its expiry
+ * (`tokenExpiresAt`, from `exp`) and the API's authorizer rejects expired tokens: no cookie is involved.
+ * Note: the roles, section and country in the token are refreshed only at the next sign-in; the platform's
+ * permissions (administrators, managers) are instead checked at every request.
+ */
+export const OAUTH_JWT_EXPIRE_TIME = '7 days';
+
+/**
  * The cookie that keeps `state` and the PKCE verifier between the authorization request and the callback.
  * Note: it's not a session cookie; it's only used during the sign-in flow.
  */
